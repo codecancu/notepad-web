@@ -12,6 +12,10 @@ export interface Doc {
   handle?: FileSystemFileHandle;
   cursor?: { lineNumber: number; column: number };
   scrollTop?: number;
+  /** file.lastModified when we last read/wrote this doc's file — the baseline for external-change detection. */
+  diskModified?: number;
+  /** true when the on-disk file was modified by another program since we last synced. */
+  externallyChanged?: boolean;
 }
 
 export class DocumentStore {

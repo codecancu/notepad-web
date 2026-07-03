@@ -47,6 +47,10 @@ export class FileActions {
       dirty: false,
     });
     this.controller.showDoc(doc.id);
+    // Record the on-disk lastModified so we can later detect external changes.
+    if (res.handle) {
+      this.store.update(doc.id, { diskModified: await this._handleModified(res.handle) });
+    }
   }
 
   async saveActive(): Promise<void> {
@@ -137,6 +141,8 @@ export class FileActions {
       eol: res.eol,
       bom: res.bom,
       dirty: false,
+      externallyChanged: false,
+      diskModified: await this._handleModified(doc.handle),
     });
     // Re-show the doc so CM6 picks up the new content.
     this.controller.showDoc(doc.id);
@@ -211,16 +217,50 @@ export class FileActions {
     if (doc.handle) {
       if (await this.file.ensureWritable(doc.handle)) {
         await this.file.saveTo(doc.handle, doc.content, doc.eol, doc.bom);
-        this.store.update(doc.id, { dirty: false });
+        this.store.update(doc.id, {
+          dirty: false,
+          externallyChanged: false,
+          diskModified: await this._handleModified(doc.handle),
+        });
         return 'saved';
       }
       // Permission denied/revoked — fall through to saveAs so user can pick a new location.
     }
     const handle = await this.file.saveAs(doc.name, doc.content, doc.eol, doc.bom);
     if (!handle) return 'cancelled';
-    this.store.update(doc.id, { handle, name: handle.name });
-    this.store.update(doc.id, { dirty: false });
+    this.store.update(doc.id, {
+      handle,
+      name: handle.name,
+      dirty: false,
+      externallyChanged: false,
+      diskModified: await this._handleModified(handle),
+    });
     return 'saved';
+  }
+
+  /** Read a handle's on-disk lastModified, or undefined if unavailable. */
+  private async _handleModified(handle: FileSystemFileHandle): Promise<number | undefined> {
+    try {
+      return (await handle.getFile()).lastModified;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Re-check every file-backed doc against its on-disk lastModified and mark any
+   * whose file changed externally (externallyChanged=true) so its tab shows the
+   * "changed on disk" indicator. Call when the editor window regains focus.
+   * Faithful to NotepadNext's external-change detection.
+   */
+  async checkExternalChanges(): Promise<void> {
+    for (const doc of this.store.list()) {
+      if (!doc.handle || doc.diskModified === undefined || doc.externallyChanged) continue;
+      const lm = await this._handleModified(doc.handle);
+      if (lm !== undefined && lm > doc.diskModified) {
+        this.store.update(doc.id, { externallyChanged: true });
+      }
+    }
   }
 
   /** Read content from a FileSystemFileHandle (for reload). */

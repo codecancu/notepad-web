@@ -202,6 +202,15 @@ export class App {
     });
     fileActionsRef.current = fileActions;
 
+    // Bug 2: detect files changed on disk by another program. Re-check on
+    // startup and whenever the editor window/tab regains focus, then the tab
+    // shows a red disk for any externally-changed file.
+    void fileActions.checkExternalChanges();
+    window.addEventListener('focus', () => void fileActions.checkExternalChanges());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void fileActions.checkExternalChanges();
+    });
+
     const recentFilesService = this.deps.recentFiles ?? new RecentFilesService();
 
     // StatusBar: shows language · EOL · cursor for the active doc.

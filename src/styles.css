@@ -157,6 +157,41 @@ body {
   background: #e02020;
 }
 
+/* ── Per-tab disk-state icon (Bug 2) ───────────────────────────────────────── */
+/* A small floppy drawn in CSS so it colours cleanly:
+   blue = in sync with disk, red = unsaved edits, red + ring = changed on disk. */
+.tab-disk {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  border-radius: 1px 3px 1px 1px;
+  position: relative;
+}
+.tab-disk--synced {
+  background: #2f6fdb;
+}
+.tab-disk--dirty,
+.tab-disk--changed {
+  background: #d23b3b;
+}
+/* floppy shutter (white strip near the bottom) */
+.tab-disk::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 1.5px;
+  height: 3.5px;
+  background: #fff;
+  border-radius: 0 0 1px 1px;
+}
+/* externally-changed: a white ring to draw the eye */
+.tab-disk--changed {
+  box-shadow:
+    0 0 0 1px #fff,
+    0 0 0 2px #d23b3b;
+}
+
 /* ── Overflow chevron button ────────────────────────────────────────────────── */
 .tab-overflow-btn {
   flex-shrink: 0;

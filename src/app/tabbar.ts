@@ -58,7 +58,22 @@ export class TabBar {
       tab.className =
         'tab' + (doc.id === this.store.activeId ? ' active' : '') + (doc.dirty ? ' dirty' : '');
       tab.dataset.id = doc.id;
-      tab.textContent = (doc.dirty ? '● ' : '') + doc.name;
+      // Disk-state indicator (faithful to NotepadNext tab disk icon): blue = in
+      // sync with disk, red = unsaved edits, red+ring = changed externally.
+      const disk = document.createElement('span');
+      disk.className = 'tab-disk';
+      if (doc.externallyChanged) {
+        disk.classList.add('tab-disk--changed');
+        disk.title = 'Changed on disk — right-click the tab → Reload';
+      } else if (doc.dirty) {
+        disk.classList.add('tab-disk--dirty');
+        disk.title = 'Unsaved changes';
+      } else {
+        disk.classList.add('tab-disk--synced');
+        disk.title = doc.handle ? 'Saved (in sync with disk)' : 'New file';
+      }
+      tab.appendChild(disk);
+      tab.appendChild(document.createTextNode(doc.name));
       tab.addEventListener('click', () => this.onActivate(doc.id));
 
       tab.addEventListener('contextmenu', (e) => {
