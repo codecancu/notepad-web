@@ -61,6 +61,9 @@ export default {
         // the extension build (unused); used when dist/ is hosted over HTTPS.
         { from: 'public/manifest.webmanifest', to: 'manifest.webmanifest' },
         { from: 'public/sw.js', to: 'sw.js' },
+        // Root redirect → editor.html so the site root (GitHub Pages sub-path)
+        // opens the editor instead of 404. Unused by the extension build.
+        { from: 'public/index.html', to: 'index.html' },
         // Copy Wasmoon's glue.wasm into dist/ so it's served from the
         // extension origin (chrome-extension://...) — no CDN, no remote URL.
         {
