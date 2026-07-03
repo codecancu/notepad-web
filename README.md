@@ -14,10 +14,9 @@ powered by **CodeMirror 6** and **Wasmoon** (Lua 5.4 in WASM).
 > **NotePad Web is an independent project and is not affiliated with, endorsed by,
 > or sponsored by Notepad++ or NotepadNext.**
 
-<!-- TODO: add screenshot docs/screenshot.png -->
-<!-- Maintainer: capture a screenshot of the extension in action and save it to
-     docs/screenshot.png, then replace this comment with:
-     ![NotePad Web screenshot](docs/screenshot.png) -->
+<p align="center">
+  <img src="docs/screenshot.png" alt="NotePad Web running as a browser extension — menu bar, toolbar, tabs, and editor with the Notepad++ light theme" width="840" />
+</p>
 
 ## Why this exists
 
