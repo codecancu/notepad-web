@@ -59,7 +59,9 @@ describe('TabBar — basic rendering', () => {
     store.update(doc.id, { dirty: true });
     bar.render();
     const tab = root.querySelector('.tab');
-    expect(tab?.textContent).toContain('●');
+    // Dirty state is shown via a red disk indicator (Bug 2), not a ● glyph.
+    expect(tab?.querySelector('.tab-disk--dirty')).not.toBeNull();
+    expect(tab?.textContent).toContain('dirty.txt');
   });
 
   it('calls onActivate when a tab is clicked', () => {
