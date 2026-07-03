@@ -65,8 +65,25 @@ export class FileActions {
    */
   async saveAll(): Promise<void> {
     const docs = this.store.list();
+    let consecutiveCancels = 0;
     for (const doc of docs) {
-      await this._saveDoc(doc);
+      const result = await this._saveDoc(doc);
+      if (result === 'cancelled') {
+        consecutiveCancels++;
+        // After two Save-As pickers are cancelled back-to-back, stop spamming
+        // the picker and ask the user whether to keep going or abort Save All.
+        if (consecutiveCancels >= 2) {
+          const keepGoing = this.confirmFn(
+            'You cancelled saving 2 files in a row.\n\n' +
+              'OK = continue saving the remaining files\n' +
+              'Cancel = stop Save All',
+          );
+          if (!keepGoing) return;
+          consecutiveCancels = 0;
+        }
+      } else {
+        consecutiveCancels = 0;
+      }
     }
   }
 
@@ -185,20 +202,25 @@ export class FileActions {
     }
   }
 
-  /** Internal: save a single doc (used by both saveActive and saveAll). */
-  private async _saveDoc(doc: Doc): Promise<void> {
+  /**
+   * Internal: save a single doc (used by both saveActive and saveAll).
+   * Returns 'saved' when written, or 'cancelled' when the user dismissed the
+   * Save-As picker (saveAll uses this to detect consecutive cancels).
+   */
+  private async _saveDoc(doc: Doc): Promise<'saved' | 'cancelled'> {
     if (doc.handle) {
       if (await this.file.ensureWritable(doc.handle)) {
         await this.file.saveTo(doc.handle, doc.content, doc.eol, doc.bom);
         this.store.update(doc.id, { dirty: false });
-        return;
+        return 'saved';
       }
       // Permission denied/revoked — fall through to saveAs so user can pick a new location.
     }
     const handle = await this.file.saveAs(doc.name, doc.content, doc.eol, doc.bom);
-    if (!handle) return;
+    if (!handle) return 'cancelled';
     this.store.update(doc.id, { handle, name: handle.name });
     this.store.update(doc.id, { dirty: false });
+    return 'saved';
   }
 
   /** Read content from a FileSystemFileHandle (for reload). */
