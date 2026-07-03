@@ -5,6 +5,8 @@ export interface ContextMenuItem {
   action?: () => void;
   enabled: boolean;
   type?: 'separator';
+  /** Optional tooltip (hover title) — e.g. to explain why an item is disabled. */
+  title?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export function showContextMenu(items: ContextMenuItem[], x: number, y: number):
     li.className = 'context-menu-item' + (it.enabled ? '' : ' disabled');
     li.setAttribute('role', 'menuitem');
     li.textContent = it.label;
+    if (it.title) li.title = it.title;
 
     if (it.enabled) {
       li.setAttribute('tabindex', '0');

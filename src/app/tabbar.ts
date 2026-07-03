@@ -128,7 +128,11 @@ export class TabBar {
             { label: '', type: 'separator', enabled: false },
             {
               label: 'Copy Full Path',
-              enabled: false,
+              // Browsers deliberately hide absolute paths from File System Access
+              // handles (security), so only the file name is available — copy that.
+              enabled: true,
+              title: 'Browsers expose only the file name, not the absolute path',
+              action: () => void navigator.clipboard.writeText(doc.name),
             },
             {
               label: 'Copy File Name',
@@ -137,7 +141,10 @@ export class TabBar {
             },
             {
               label: 'Copy File Directory',
+              // No directory info is available: File System Access handles do not
+              // expose a path. Kept disabled with an explanatory tooltip.
               enabled: false,
+              title: 'Not available — browsers do not expose file system paths',
             },
           ],
           e.clientX,
