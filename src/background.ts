@@ -59,11 +59,26 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener((info) => {
+chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== MENU_ID) return;
-  const text = info.selectionText ?? '';
-  if (!text) return;
   void (async () => {
+    // info.selectionText collapses newlines/tabs. Read the REAL selection via a
+    // one-shot injected function (getSelection().toString() preserves line breaks
+    // and tabs). activeTab is granted by accepting this context-menu item; if
+    // scripting is unavailable (restricted page) fall back to info.selectionText.
+    let text = info.selectionText ?? '';
+    if (tab?.id !== undefined) {
+      try {
+        const [res] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => window.getSelection()?.toString() ?? '',
+        });
+        if (typeof res?.result === 'string' && res.result) text = res.result;
+      } catch {
+        // Restricted page (chrome://, Web Store, etc.) — keep info.selectionText.
+      }
+    }
+    if (!text) return;
     await chrome.storage.session.set({ [PENDING_KEY]: text });
     await openOrFocusEditor();
   })();

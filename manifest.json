@@ -3,7 +3,7 @@
   "name": "Notepad Web",
   "version": "0.2.0",
   "description": "A CodeMirror-based code editor that runs fully offline in your browser.",
-  "permissions": ["storage", "contextMenus"],
+  "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {
     "default_title": "Open Notepad Web",
