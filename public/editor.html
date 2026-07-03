@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>NotePad Web</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="menubar"></div>
+      <div id="toolbar"></div>
+      <div id="dock">
+        <div id="tabbar"></div>
+        <div id="editor"></div>
+      </div>
+      <div id="statusbar"></div>
+    </div>
+    <!-- #settings lives outside #app so it never joins the fixed grid. The
+         SettingsPanel renders a .dialog-overlay inside it when opened. -->
+    <div id="settings" hidden></div>
+  </body>
+</html>

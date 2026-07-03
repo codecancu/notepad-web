@@ -1,0 +1,25 @@
+NotePad Web
+Copyright 2026 the NotePad Web authors
+License: GPL-3.0-or-later
+
+This project is a derivative work of NotepadNext, which is itself a reimplementation
+of Notepad++.
+
+NotepadNext
+Copyright 2021-2024 Justin Dailey
+License: GPL-3.0
+Source: https://github.com/dail8859/NotepadNext
+
+NotePad Web bundles assets derived from NotepadNext:
+  - .lua language definitions (public/lua/) — used to drive syntax highlighting
+    via Wasmoon (Lua 5.4 in WASM).
+  - Toolbar icon PNGs (public/icons/) — sourced from the NotepadNext toolbar
+    icon set, which itself includes FamFamFam Silk icons (CC-BY 3.0, Mark James).
+
+Notepad++ is the original editor that NotepadNext reimplements; NotePad Web
+extends that lineage to the browser/Chrome-extension platform. Notepad++ and
+NotepadNext are the works of their respective authors and are not affiliated with
+NotePad Web.
+
+For the full list of runtime and build-time third-party dependencies (CodeMirror 6,
+Wasmoon, dockview, and others), see THIRD_PARTY_LICENSES.md.
