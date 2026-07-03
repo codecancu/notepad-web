@@ -149,7 +149,8 @@ body {
 
 .tab-close:hover {
   background: rgb(251, 115, 115);
-  border: 1px solid rgba(0, 0, 0, 0.125);
+  /* box-shadow (not border) so hover never resizes the button or the tab height */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.125);
   color: #fff;
 }
 
@@ -162,8 +163,8 @@ body {
    blue = in sync with disk, red = unsaved edits, red + ring = changed on disk. */
 .tab-disk {
   flex: 0 0 auto;
-  width: 11px;
-  height: 11px;
+  width: 13px;
+  height: 13px;
   border-radius: 1px 3px 1px 1px;
   position: relative;
 }
@@ -178,10 +179,10 @@ body {
 .tab-disk::after {
   content: '';
   position: absolute;
-  left: 2px;
-  right: 2px;
-  bottom: 1.5px;
-  height: 3.5px;
+  left: 2.5px;
+  right: 2.5px;
+  bottom: 2px;
+  height: 4px;
   background: #fff;
   border-radius: 0 0 1px 1px;
 }
