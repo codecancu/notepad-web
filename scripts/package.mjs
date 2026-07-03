@@ -6,7 +6,7 @@ import { resolve, join } from 'node:path';
 
 export function checkManifestCompliance(m) {
   if (m.manifest_version !== 3) throw new Error('manifest_version must be 3');
-  const allowed = new Set(['storage']);
+  const allowed = new Set(['storage', 'contextMenus']);
   for (const p of m.permissions ?? []) {
     if (!allowed.has(p)) throw new Error(`disallowed permissions: ${p}`);
   }

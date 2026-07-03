@@ -38,3 +38,33 @@ async function openOrFocusEditor(): Promise<void> {
 chrome.action.onClicked.addListener(() => {
   void openOrFocusEditor();
 });
+
+// ── "Copy this text to Notepad Web" page context menu ────────────────────────
+// On any page, right-clicking a text selection offers this item. Clicking it
+// stashes the selected text in chrome.storage.session and opens/focuses the
+// editor, which then creates a new document tab seeded with that text.
+// selectionText is provided by the click event itself — no content script or
+// host permission needed; only the benign "contextMenus" permission.
+const MENU_ID = 'copyToNotepadWeb';
+const PENDING_KEY = 'pendingText';
+
+chrome.runtime.onInstalled.addListener(() => {
+  // removeAll first so re-install / update never errors on a duplicate id.
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_ID,
+      title: 'Copy this text to Notepad Web',
+      contexts: ['selection'],
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info) => {
+  if (info.menuItemId !== MENU_ID) return;
+  const text = info.selectionText ?? '';
+  if (!text) return;
+  void (async () => {
+    await chrome.storage.session.set({ [PENDING_KEY]: text });
+    await openOrFocusEditor();
+  })();
+});

@@ -103,6 +103,27 @@ export class App {
     this.view = deps.view;
   }
 
+  /**
+   * "Copy this text to Notepad Web" (page context menu, handled in background.ts)
+   * stashes the selected text in chrome.storage.session. Pull it out and open it
+   * in a NEW document tab. Called on startup (fresh editor tab) and whenever this
+   * tab regains focus (an existing tab the background worker reused). No-ops
+   * outside the extension (e.g. e2e via http-server, where chrome is undefined).
+   */
+  private async checkPendingText(): Promise<void> {
+    if (typeof chrome === 'undefined' || !chrome.storage?.session) return;
+    try {
+      const stored = await chrome.storage.session.get('pendingText');
+      const text = stored.pendingText as string | undefined;
+      if (!text) return;
+      await chrome.storage.session.remove('pendingText');
+      const d = this.deps.store.create({ content: text, dirty: true });
+      this.controller.showDoc(d.id);
+    } catch {
+      /* storage.session unavailable — ignore */
+    }
+  }
+
   async start(): Promise<void> {
     const loaded = await this.deps.settings.load();
 
@@ -164,6 +185,15 @@ export class App {
 
     const active = this.deps.store.active();
     if (active) this.controller.showDoc(active.id);
+
+    // "Copy this text to Notepad Web": pick up any text stashed by the page
+    // context menu — now (fresh tab) and whenever this tab regains focus (a
+    // reused tab that background.ts focused without reloading).
+    void this.checkPendingText();
+    window.addEventListener('focus', () => void this.checkPendingText());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void this.checkPendingText();
+    });
 
     const fileActions = new FileActions({
       file: this.deps.file,
