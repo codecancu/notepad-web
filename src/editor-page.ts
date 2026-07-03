@@ -643,8 +643,10 @@ function localWasmUri(): string {
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
     return chrome.runtime.getURL('glue.wasm');
   }
-  // http-server e2e: glue.wasm is in the dist/ root served at /glue.wasm
-  return '/glue.wasm';
+  // Non-extension (e2e http-server, or the PWA on GitHub Pages / any host):
+  // resolve RELATIVE to the document so it also works under a sub-path such as
+  // https://user.github.io/notepad-web/ (an absolute "/glue.wasm" would 404 there).
+  return 'glue.wasm';
 }
 
 window.__luaReady = (async (): Promise<number> => {
