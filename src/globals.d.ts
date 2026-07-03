@@ -23,7 +23,10 @@ type PermissionState = 'granted' | 'denied' | 'prompt';
 
 // File Handling API (PWA): the OS hands opened files to the installed app via
 // window.launchQueue. Not yet in lib.dom, so declared minimally here.
-type LaunchParams = { readonly files: readonly FileSystemFileHandle[]; readonly targetURL?: string };
+type LaunchParams = {
+  readonly files: readonly FileSystemFileHandle[];
+  readonly targetURL?: string;
+};
 interface LaunchQueue {
   setConsumer(consumer: (params: LaunchParams) => void): void;
 }
