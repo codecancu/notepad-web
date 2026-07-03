@@ -49,7 +49,7 @@ body:
     id: version
     attributes:
       label: Extension version
-      description: Found in chrome://extensions next to NotePad Web.
+      description: Found in chrome://extensions next to Notepad Web.
       placeholder: '0.1.0'
     validations:
       required: true

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="NotePad Web logo" width="480" />
+  <img src="docs/logo.png" alt="Notepad Web logo" width="480" />
 </p>
 
-# NotePad Web
+# Notepad Web
 
 A faithful, fully-offline web / Chrome-extension port of Notepad++ (via NotepadNext),
 powered by **CodeMirror 6** and **Wasmoon** (Lua 5.4 in WASM).
@@ -11,16 +11,16 @@ powered by **CodeMirror 6** and **Wasmoon** (Lua 5.4 in WASM).
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![version](https://img.shields.io/badge/version-0.2.0-informational)
 
-> **NotePad Web is an independent project and is not affiliated with, endorsed by,
+> **Notepad Web is an independent project and is not affiliated with, endorsed by,
 > or sponsored by Notepad++ or NotepadNext.**
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="NotePad Web running as a browser extension — menu bar, toolbar, tabs, and editor with the Notepad++ light theme" width="840" />
+  <img src="docs/screenshot.png" alt="Notepad Web running as a browser extension — menu bar, toolbar, tabs, and editor with the Notepad++ light theme" width="840" />
 </p>
 
 ## Why this exists
 
-NotePad Web started as a labor of love: an attempt to bring the Notepad++
+Notepad Web started as a labor of love: an attempt to bring the Notepad++
 experience that so many of us grew up with into the browser, for the times the
 desktop app isn't within reach. Notepad++ is deep and battle-tested, and — being
 honest — not every feature crosses over to a browser sandbox smoothly. Some had
@@ -32,13 +32,13 @@ one pair of hands and one machine allow. If something feels off while you're
 using it, **please [open an issue](../../issues/new/choose)** — I genuinely
 appreciate it. Every report is read and triaged in good faith, and the ones that
 point to real problems are prioritised. Bit by bit, that feedback is what makes
-NotePad Web more stable and a nicer place to write.
+Notepad Web more stable and a nicer place to write.
 
 Thank you for giving it a try. 💚
 
 ## What it is
 
-NotePad Web is a GPL-3.0 web port of **NotepadNext** (which itself reimplements
+Notepad Web is a GPL-3.0 web port of **NotepadNext** (which itself reimplements
 **Notepad++**). It bundles NotepadNext's real `.lua` language definitions and toolbar
 icons, then executes them inside Chrome via Wasmoon (Lua 5.4 compiled to WASM),
 reproducing the authentic Notepad++ light theme and language-detection logic without
@@ -155,16 +155,16 @@ use a native desktop editor such as NotepadNext or Notepad++.
 
 ## Credits / Acknowledgements
 
-NotePad Web stands on the shoulders of:
+Notepad Web stands on the shoulders of:
 
 - **NotepadNext** by Justin Dailey — <https://github.com/dail8859/NotepadNext>
-  (GPL-3.0). NotePad Web is a faithful web port of NotepadNext; it bundles
+  (GPL-3.0). Notepad Web is a faithful web port of NotepadNext; it bundles
   NotepadNext's `.lua` language definitions and toolbar icon PNGs. NotepadNext is the
   upstream desktop application this project derives from.
 
 - **Notepad++** — the original editor that NotepadNext reimplements, and the
   spiritual ancestor of this project. Notepad++ is the work of its respective authors
-  and is not affiliated with NotePad Web.
+  and is not affiliated with Notepad Web.
 
 - **CodeMirror 6** (MIT) — <https://codemirror.net/>. The editor core.
 
@@ -180,7 +180,7 @@ See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the full dependency l
 
 ## Disclaimer
 
-NotePad Web is an independent project and is **not affiliated with, endorsed by, or
+Notepad Web is an independent project and is **not affiliated with, endorsed by, or
 sponsored by** Notepad++ or NotepadNext. Notepad++ and NotepadNext are the works of
 their respective authors.
 
@@ -188,7 +188,7 @@ their respective authors.
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 
-NotePad Web is a derivative work of NotepadNext (© Justin Dailey, GPL-3.0), which
+Notepad Web is a derivative work of NotepadNext (© Justin Dailey, GPL-3.0), which
 itself is a reimplementation of Notepad++. The GPL-3.0-or-later license applies to all
 original contributions in this repository.
 

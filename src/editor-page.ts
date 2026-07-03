@@ -15,7 +15,7 @@ import { FileService } from './services/file-service';
 import { createStorage } from './services/chrome-adapter';
 import { App } from './app/app';
 import { EditorController } from './editor/editor-controller';
-import { notepadLightTheme } from './editor/notepad-light-theme';
+import { notepadBase } from './editor/notepad-light-theme';
 import { notepadHighlight } from './editor/notepad-theme';
 import { dockManager } from './app/dock-manager';
 import { debugLog, mountDebugLogPanel } from './app/debug-log-panel';
@@ -252,9 +252,11 @@ const sharedExtensions = [
   // Notepad++ light theme base rules (bg/caret/gutter/selection).
   // Included here so the initial EditorView state (before controller.setSharedExtensions
   // creates the first per-doc state) renders with the correct light theme immediately.
-  // Per-doc states seed the controller-owned themeCompartment with _currentThemeExt
-  // (default: notepadLightTheme) so new tabs always inherit the active theme.
-  notepadLightTheme,
+  // Per-doc states seed the controller-owned themeCompartment with the active
+  // theme MARKER (default: notepadLightMarker) so new tabs inherit the theme.
+  // Only the base CSS (both &light and &dark scopes) lives here; the marker in
+  // the compartment decides which scope fires — avoiding a light/dark conflict.
+  notepadBase,
   notepadHighlight,
   EditorView.updateListener.of((update: ViewUpdate) => {
     // Route to the controller which writes to the DocumentStore.
@@ -515,7 +517,7 @@ window.__workspaceOpen = () => {
 
 // ── Install console interceptor so all console output is captured ────────────
 debugLog.install();
-debugLog.append('[NotePad Web] Startup');
+debugLog.append('[Notepad Web] Startup');
 
 // ── Dock-manager storage adapter (delegates to the KeyValueStore) ────────────
 const dockStorage = {
@@ -608,7 +610,7 @@ window.__appReady = (async () => {
   // Request a CM6 measure so it picks up its new container size.
   view.requestMeasure();
 
-  debugLog.append('[NotePad Web] Dock initialized');
+  debugLog.append('[Notepad Web] Dock initialized');
 
   // Settle layout with a rAF.
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

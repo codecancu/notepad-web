@@ -4,7 +4,7 @@
 
 ## Summary
 
-NotePad Web collects no data, makes no network requests, and contains no telemetry.
+Notepad Web collects no data, makes no network requests, and contains no telemetry.
 All files and settings stay in your browser. Nothing is transmitted anywhere.
 
 ## Data storage
@@ -19,7 +19,7 @@ All data is stored exclusively on your own device using:
 
 ## Network access
 
-NotePad Web declares no host permissions and makes zero outbound network requests.
+Notepad Web declares no host permissions and makes zero outbound network requests.
 The extension operates fully offline after installation.
 
 ## Third parties
@@ -30,8 +30,8 @@ with no network calls.
 
 ## Chrome Web Store
 
-If you installed NotePad Web from the Chrome Web Store, Google's standard Chrome
-Web Store privacy policies apply to the installation process itself. NotePad Web
+If you installed Notepad Web from the Chrome Web Store, Google's standard Chrome
+Web Store privacy policies apply to the installation process itself. Notepad Web
 itself has no relationship with those policies.
 
 ## Changes

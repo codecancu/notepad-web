@@ -5,7 +5,7 @@ import { autocompletion } from '@codemirror/autocomplete';
 import { undo, redo, selectAll, indentMore, indentLess } from '@codemirror/commands';
 import { foldAll, unfoldAll } from '@codemirror/language';
 import { gotoLine, findNext, findPrevious } from '@codemirror/search';
-import { notepadLightTheme } from '../editor/notepad-light-theme';
+import { notepadLightMarker, notepadDarkMarker } from '../editor/notepad-light-theme';
 import { DocumentStore } from '../services/document-store';
 import { PersistenceService } from '../services/persistence-service';
 import { SettingsService } from '../services/settings-service';
@@ -212,14 +212,11 @@ export class App {
 
       // ── Theme ──────────────────────────────────────────────────────────────
       const eff = new ThemeService(() => s.theme).effective();
-      // Swap the theme compartment: dark stub vs light (Notepad++ faithful).
-      // Full dark theme is out of scope for P1.5; light/system → notepadLightTheme.
-      // Use controller.setTheme() so the new extension is ALSO stored in
-      // _currentThemeExt — this ensures new tabs opened after the theme change
-      // inherit the correct theme rather than always defaulting to light mode.
-      this.controller.setTheme(
-        eff === 'dark' ? EditorView.theme({}, { dark: true }) : notepadLightTheme,
-      );
+      // Swap the theme compartment MARKER: dark vs light. Both modes are fully
+      // styled by notepadBase's &light/&dark rules (in sharedExtensions); the
+      // marker just selects which scope fires. setTheme() also stores the marker
+      // in _currentThemeExt so tabs opened after a theme change inherit it.
+      this.controller.setTheme(eff === 'dark' ? notepadDarkMarker : notepadLightMarker);
     };
 
     // SettingsPanel: opened via Ctrl/Cmd+Comma (handled in keydown above).
@@ -303,7 +300,25 @@ export class App {
 
     const doPaste = (): void => {
       this.view.focus();
-      document.execCommand('paste');
+      // execCommand('paste') is blocked in modern Chrome (extensions cannot read
+      // the clipboard that way). Use the async Clipboard API on this user gesture
+      // and insert the text at the selection via CM6. Fall back to execCommand
+      // only if the async API is unavailable/denied.
+      const clip = navigator.clipboard;
+      if (clip && typeof clip.readText === 'function') {
+        clip
+          .readText()
+          .then((text) => {
+            if (!text) return;
+            this.view.dispatch(this.view.state.replaceSelection(text));
+            this.view.focus();
+          })
+          .catch(() => {
+            document.execCommand('paste');
+          });
+      } else {
+        document.execCommand('paste');
+      }
     };
 
     // ── Editor context menu ─────────────────────────────────────────────────
@@ -578,7 +593,7 @@ export class App {
     // ── About / Debug dialogs ─────────────────────────────────────────────────
 
     const doAbout = (): void => {
-      alert('NotePad Web\nA Notepad++-faithful web editor.\nLicense: GPL-3.0-or-later');
+      alert('Notepad Web\nA Notepad++-faithful web editor.\nLicense: GPL-3.0-or-later');
     };
 
     const doDebugInfo = (): void => {

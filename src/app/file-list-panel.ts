@@ -12,7 +12,7 @@
  *  - Clicking an entry calls store.setActive(id) + controller.showDoc(id).
  *  - The active document row is highlighted with a distinct background.
  *  - Dirty documents show a `●` bullet after the filename (faithful to NotepadNext).
- *  - Light chrome styling consistent with the rest of the NotePad Web UI.
+ *  - Light chrome styling consistent with the rest of the Notepad Web UI.
  */
 
 import type { DocumentStore } from '../services/document-store';

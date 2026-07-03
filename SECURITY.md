@@ -14,6 +14,6 @@ to open a private advisory. You will receive a response within 7 days.
 
 ## Scope
 
-NotePad Web makes no network requests and stores data only in the local browser
+Notepad Web makes no network requests and stores data only in the local browser
 (IndexedDB, chrome.storage.local, File System Access API). The attack surface is
 limited to malicious file content and extension permission misuse.

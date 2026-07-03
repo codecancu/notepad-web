@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /**
- * FindDialog — 3-tab Find/Replace/Mark dialog for NotePad Web (P6.2).
+ * FindDialog — 3-tab Find/Replace/Mark dialog for Notepad Web (P6.2).
  *
  * Faithful to NotepadNext FindReplaceDlg: 3 tabs (Find | Replace | Mark),
  * shared options, MRU dropdowns, Extended/Regex search modes.

@@ -1,4 +1,4 @@
-# NotePad Web — Faithful Port Plan (NotepadNext → Web/Extension)
+# Notepad Web — Faithful Port Plan (NotepadNext → Web/Extension)
 
 ## Context
 

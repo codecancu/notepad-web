@@ -128,6 +128,39 @@ const _notepadBase: Extension = EditorView.baseTheme({
     fontFamily: '"Courier New", Courier, monospace',
     fontSize: '13px',
   },
+
+  // ── Dark-mode structural rules ──────────────────────────────────────────────
+  // A usable dark theme so the caret stays visible and the monospace font is
+  // applied in dark mode too (previously dark mode used a bare marker with no
+  // structural rules, so the &light caret/font never fired → invisible caret and
+  // browser-default font). These &dark rules fire when the dark marker is active.
+  '&dark': {
+    backgroundColor: '#1e1e1e',
+    color: '#e0e0e0',
+  },
+  '&dark .cm-content': {
+    backgroundColor: '#1e1e1e',
+    caretColor: '#e0e0e0',
+    fontFamily: '"Courier New", Courier, monospace',
+  },
+  '&dark .cm-cursor, &dark .cm-dropCursor': {
+    borderLeftWidth: '2px',
+    borderLeftColor: '#e0e0e0',
+  },
+  '&dark .cm-activeLine': {
+    backgroundColor: '#2a2a2a',
+  },
+  '&dark.cm-focused .cm-selectionBackground, &dark .cm-selectionBackground': {
+    backgroundColor: '#264f78',
+  },
+  '&dark .cm-gutters': {
+    backgroundColor: '#252526',
+    color: '#858585',
+    borderRight: '1px solid #3a3a3a',
+  },
+  '&dark .cm-activeLineGutter': {
+    backgroundColor: '#2a2a2a',
+  },
 });
 
 // ── Light-mode theme marker (non-dark) ───────────────────────────────────────
@@ -150,3 +183,20 @@ export const notepadLightMarker: Extension = EditorView.theme({}, { dark: false 
  * system/light mode.
  */
 export const notepadLightTheme: Extension = [_notepadBase, notepadLightMarker];
+
+/**
+ * The structural base theme (CSS only, no light/dark marker). Both `&light` and
+ * `&dark` scoped rules live here; which set fires depends on the active marker.
+ *
+ * Put THIS in sharedExtensions (always present, both scopes available) and let
+ * the themeCompartment supply ONLY the marker (`notepadLightMarker` /
+ * `notepadDarkMarker`). Keeping a single marker in the compartment avoids the
+ * light/dark marker conflict that previously left the caret and font unstyled.
+ */
+export const notepadBase: Extension = _notepadBase;
+
+/** Dark-mode marker (sets CM6's darkTheme facet true → `&dark` rules fire). */
+export const notepadDarkMarker: Extension = EditorView.theme({}, { dark: true });
+
+/** Complete dark theme (base rules + dark marker) — for the themeCompartment. */
+export const notepadDarkTheme: Extension = [_notepadBase, notepadDarkMarker];

@@ -2,7 +2,7 @@
 
 This directory contains Lua source files copied from the
 [NotepadNext](https://github.com/dail8859/NotepadNext) project, used to build
-the faithful language registry for NotePad Web.
+the faithful language registry for Notepad Web.
 
 - `init.lua` — entry point; defines `rgb()`, `DetectLanguageFromContents`, and
   builds the `languages` global table by requiring all per-language modules.

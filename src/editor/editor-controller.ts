@@ -8,7 +8,7 @@ import { luaRegistry as _defaultLuaRegistry } from '../services/lua-registry';
 import type { LangDef } from '../services/lua-registry';
 import { languageExtensionFor } from './language-support';
 import { buildHighlightExtension, notepadHighlight } from './notepad-theme';
-import { notepadLightTheme } from './notepad-light-theme';
+import { notepadLightMarker } from './notepad-light-theme';
 
 /**
  * Minimal interface that EditorController needs from the Lua registry.
@@ -143,9 +143,10 @@ export class EditorController {
    * Updated by setTheme() so tabs opened after a theme change inherit the
    * correct theme (light or dark) rather than always starting in light mode.
    *
-   * Default: notepadLightTheme — faithful Notepad++ light colours.
+   * Default: notepadLightMarker — the light marker; base CSS (both scopes)
+   * comes from sharedExtensions, so the compartment holds only the marker.
    */
-  private _currentThemeExt: Extension = notepadLightTheme;
+  private _currentThemeExt: Extension = notepadLightMarker;
 
   /**
    * @param view   The CodeMirror EditorView.

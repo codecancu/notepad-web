@@ -881,7 +881,7 @@ export class MenuBar {
         disabled('Check for Updates'),
         sep(),
         disabled('About Qt'),
-        enabled('About NotePad Web', helpAbout),
+        enabled('About Notepad Web', helpAbout),
         enabled('Debug Info', helpDebugInfo),
         sep(),
         enabled('Debug Log', helpDebugLog),

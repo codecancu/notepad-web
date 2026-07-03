@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Renamed the project to NotePad Web.** The Chrome extension ID, IndexedDB
+- **Renamed the project to Notepad Web.** The Chrome extension ID, IndexedDB
   store name, and npm package name are now `notepad-web`. Existing local session
   data stored under the previous `notepad-ts` store name is **not migrated** —
   users upgrading from v0.1.0 will start with a fresh session.
