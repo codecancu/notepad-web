@@ -56,6 +56,7 @@ export default {
       patterns: [
         { from: 'manifest.json' },
         { from: 'public/icons', to: 'icons' },
+        { from: 'public/favicon.ico', to: 'favicon.ico' },
         // Copy Wasmoon's glue.wasm into dist/ so it's served from the
         // extension origin (chrome-extension://...) — no CDN, no remote URL.
         {

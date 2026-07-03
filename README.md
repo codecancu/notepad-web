@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="NotePad Web logo" width="480" />
+</p>
+
 # NotePad Web
 
 A faithful, fully-offline web / Chrome-extension port of Notepad++ (via NotepadNext),
@@ -14,6 +18,24 @@ powered by **CodeMirror 6** and **Wasmoon** (Lua 5.4 in WASM).
 <!-- Maintainer: capture a screenshot of the extension in action and save it to
      docs/screenshot.png, then replace this comment with:
      ![NotePad Web screenshot](docs/screenshot.png) -->
+
+## Why this exists
+
+NotePad Web started as a labor of love: an attempt to bring the Notepad++
+experience that so many of us grew up with into the browser, for the times the
+desktop app isn't within reach. Notepad++ is deep and battle-tested, and — being
+honest — not every feature crosses over to a browser sandbox smoothly. Some had
+to be reworked, and some are still on the way (see
+[Known limitations](#known-limitations) for the honest gaps).
+
+It's also built and tested by one person, so coverage only stretches as far as
+one pair of hands and one machine allow. If something feels off while you're
+using it, **please [open an issue](../../issues/new/choose)** — I genuinely
+appreciate it. Every report is read and triaged in good faith, and the ones that
+point to real problems are prioritised. Bit by bit, that feedback is what makes
+NotePad Web more stable and a nicer place to write.
+
+Thank you for giving it a try. 💚
 
 ## What it is
 
