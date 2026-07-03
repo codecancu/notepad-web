@@ -616,6 +616,19 @@ window.__appReady = (async () => {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 })();
 
+// ── PWA service worker (installability + offline) ────────────────────────────
+// Registered ONLY when the app is served over http(s) — never in the
+// chrome-extension:// build (extension pages use the MV3 background worker).
+if (
+  typeof navigator !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  location.protocol === 'https:'
+) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
 // ── Wasmoon smoke (proves Lua-in-WASM runs under MV3 CSP) ──────────────────
 //
 // The wasm binary is loaded from the extension origin (dist/glue.wasm),

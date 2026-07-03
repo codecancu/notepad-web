@@ -148,6 +148,31 @@ export class FileActions {
     this.controller.showDoc(doc.id);
   }
 
+  /**
+   * Open a file directly from a FileSystemFileHandle handed to us by the OS via
+   * the PWA File Handling API (launchQueue) — no picker. Creates a new document
+   * tab seeded with the file's content and records its on-disk baseline.
+   */
+  async openFromHandle(handle: FileSystemFileHandle): Promise<void> {
+    let res: { content: string; eol: 'lf' | 'crlf' | 'cr'; bom: boolean };
+    try {
+      res = await this._readHandle(handle);
+    } catch {
+      return;
+    }
+    const doc = this.store.create({
+      name: handle.name,
+      content: res.content,
+      languageId: 'plaintext',
+      handle,
+      eol: res.eol,
+      bom: res.bom,
+      dirty: false,
+    });
+    this.controller.showDoc(doc.id);
+    this.store.update(doc.id, { diskModified: await this._handleModified(handle) });
+  }
+
   // ── Close-variant helpers ────────────────────────────────────────────────────
 
   /**

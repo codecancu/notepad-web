@@ -1,0 +1,33 @@
+{
+  "name": "Notepad Web",
+  "short_name": "Notepad Web",
+  "description": "A faithful, fully-offline Notepad++-style code editor in your browser.",
+  "start_url": "editor.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f0f0f0",
+  "icons": [
+    { "src": "icons/icon-48.png", "sizes": "48x48", "type": "image/png" },
+    { "src": "icons/icon-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "launch_handler": { "client_mode": "focus-existing" },
+  "file_handlers": [
+    {
+      "action": "editor.html",
+      "accept": {
+        "text/plain": [
+          ".txt", ".text", ".log", ".md", ".markdown", ".csv", ".tsv", ".ini",
+          ".cfg", ".conf", ".env", ".json", ".xml", ".yaml", ".yml", ".toml",
+          ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".css", ".scss", ".less",
+          ".html", ".htm", ".vue", ".svelte", ".py", ".rb", ".php", ".pl",
+          ".c", ".h", ".cpp", ".hpp", ".cc", ".cs", ".java", ".kt", ".go",
+          ".rs", ".swift", ".lua", ".sh", ".bash", ".zsh", ".ps1", ".bat",
+          ".sql", ".r", ".m", ".dart", ".gradle", ".dockerfile", ".gitignore"
+        ]
+      }
+    }
+  ]
+}

@@ -211,6 +211,20 @@ export class App {
       if (document.visibilityState === 'visible') void fileActions.checkExternalChanges();
     });
 
+    // PWA File Handling (Feat 8): when the OS opens files with Notepad Web, they
+    // arrive via launchQueue — open each in a new document tab. No-op in the
+    // extension build (launchQueue only exists in an installed PWA).
+    if (window.launchQueue && typeof window.launchQueue.setConsumer === 'function') {
+      window.launchQueue.setConsumer((params) => {
+        if (!params.files || params.files.length === 0) return;
+        void (async () => {
+          for (const handle of params.files) {
+            await fileActions.openFromHandle(handle);
+          }
+        })();
+      });
+    }
+
     const recentFilesService = this.deps.recentFiles ?? new RecentFilesService();
 
     // StatusBar: shows language · EOL · cursor for the active doc.

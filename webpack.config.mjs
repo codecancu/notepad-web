@@ -57,6 +57,10 @@ export default {
         { from: 'manifest.json' },
         { from: 'public/icons', to: 'icons' },
         { from: 'public/favicon.ico', to: 'favicon.ico' },
+        // PWA (File Handling API): web app manifest + service worker. Harmless in
+        // the extension build (unused); used when dist/ is hosted over HTTPS.
+        { from: 'public/manifest.webmanifest', to: 'manifest.webmanifest' },
+        { from: 'public/sw.js', to: 'sw.js' },
         // Copy Wasmoon's glue.wasm into dist/ so it's served from the
         // extension origin (chrome-extension://...) — no CDN, no remote URL.
         {
