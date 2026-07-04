@@ -67,6 +67,14 @@ function submenu(label: string, items: MenuItem[], enabled_: boolean = false): M
   return { label, submenu: items, enabled: enabled_, action: undefined };
 }
 
+// PWA install page. The installable/standalone app + OS "Open with" (File
+// Handling API) exist ONLY in the hosted PWA, never in the chrome-extension://
+// build. So when running as the extension we surface a Help entry that opens the
+// PWA page (where Chrome shows the Install button); in the PWA itself it's hidden.
+const PWA_INSTALL_URL = 'https://codecancu.github.io/notepad-web/editor.html';
+const isExtensionContext = (): boolean =>
+  typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
+
 // ── MenuBar class ─────────────────────────────────────────────────────────────
 
 export class MenuBar {
@@ -883,6 +891,15 @@ export class MenuBar {
         disabled('About Qt'),
         enabled('About Notepad Web', helpAbout),
         enabled('Debug Info', helpDebugInfo),
+        // Only in the extension: point users to the installable desktop PWA.
+        ...(isExtensionContext()
+          ? [
+              sep(),
+              enabled('Install as Desktop App…', () => {
+                window.open(PWA_INSTALL_URL, '_blank', 'noopener,noreferrer');
+              }),
+            ]
+          : []),
         sep(),
         enabled('Debug Log', helpDebugLog),
       ],
