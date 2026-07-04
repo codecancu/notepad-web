@@ -67,7 +67,8 @@ export interface LangDef {
  * 1. If `process.versions.node` is set → Node (Vitest, even under happy-dom
  *    which still runs JS in Node but fakes the DOM).
  * 2. Chrome extension runtime → extension origin URI.
- * 3. Otherwise → relative `/glue.wasm` served by the dev/prod http-server.
+ * 3. Otherwise → relative `glue.wasm` (resolves against the document base, so
+ *    it works for http-server AND a PWA hosted under a sub-path).
  */
 export function resolveWasmUri(): string | undefined {
   // In Node (Vitest / happy-dom / SSR), process.versions.node is always set.
@@ -82,7 +83,10 @@ export function resolveWasmUri(): string | undefined {
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
     return chrome.runtime.getURL('glue.wasm');
   }
-  return '/glue.wasm';
+  // Relative (not "/glue.wasm") so it resolves against the document base — works
+  // for e2e http-server AND the PWA hosted under a sub-path
+  // (https://user.github.io/notepad-web/ would 404 on an absolute "/glue.wasm").
+  return 'glue.wasm';
 }
 
 // ── LuaRegistry ─────────────────────────────────────────────────────────────
