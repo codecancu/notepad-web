@@ -75,6 +75,12 @@ const PWA_INSTALL_URL = 'https://codecancu.github.io/notepad-web/editor.html';
 const isExtensionContext = (): boolean =>
   typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
 
+// Config flag: temporarily HIDE the "Install as Desktop App" entry. Installing
+// the PWA creates a SEPARATE workspace (its storage lives on a different origin
+// from the extension), which is an inconsistent experience. Flip to true to
+// re-expose the entry once storage/UX is unified.
+const SHOW_INSTALL_PWA_ENTRY: boolean = false;
+
 // ── MenuBar class ─────────────────────────────────────────────────────────────
 
 export class MenuBar {
@@ -891,8 +897,9 @@ export class MenuBar {
         disabled('About Qt'),
         enabled('About Notepad Web', helpAbout),
         enabled('Debug Info', helpDebugInfo),
-        // Only in the extension: point users to the installable desktop PWA.
-        ...(isExtensionContext()
+        // Only in the extension, and only when the config flag is on: point
+        // users to the installable desktop PWA.
+        ...(SHOW_INSTALL_PWA_ENTRY && isExtensionContext()
           ? [
               sep(),
               enabled('Install as Desktop App…', () => {
