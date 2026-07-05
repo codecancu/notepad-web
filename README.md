@@ -9,7 +9,13 @@ powered by **CodeMirror 6** and **Wasmoon** (Lua 5.4 in WASM).
 
 ![CI](https://github.com/codecancu/notepad-web/actions/workflows/ci.yml/badge.svg)
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/jfhgpoliojbbmiknmdbefeamimlekgdn?label=Chrome%20Web%20Store&logo=googlechrome&logoColor=white&color=success)](https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn)
+[![users](https://img.shields.io/chrome-web-store/users/jfhgpoliojbbmiknmdbefeamimlekgdn?label=users)](https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn)
 ![version](https://img.shields.io/badge/version-0.2.0-informational)
+
+<p align="center">
+  <a href="https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn"><b>⬇&nbsp; Install from the Chrome Web Store</b></a>
+</p>
 
 > **Notepad Web is an independent project and is not affiliated with, endorsed by,
 > or sponsored by Notepad++ or NotepadNext.**
@@ -96,7 +102,13 @@ requests only the `storage` permission.
 - MV3 CSP: `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'`.
 - Permissions: `["storage"]` only.
 
-## Install (from source)
+## Install
+
+### From the Chrome Web Store (recommended)
+
+**[➜ Install Notepad Web](https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn)** — one click, auto-updates.
+
+### From source (for development)
 
 ```bash
 git clone https://github.com/codecancu/notepad-web.git
