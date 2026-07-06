@@ -36,6 +36,8 @@ export class SessionSync {
     await this.persistence.saveSession({
       docs: this.store.list(),
       activeId: this.store.activeId,
+      activeIds: [this.store.activeForView(0)?.id ?? null, this.store.activeForView(1)?.id ?? null],
+      splitOrientation: this.store.splitOrientation,
     });
   }
 }

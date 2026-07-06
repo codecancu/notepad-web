@@ -479,6 +479,8 @@ export class MenuBar {
       viewEditorInspector,
       viewLanguageInspector,
       viewLuaConsole,
+      viewSplitHorizontal,
+      viewSplitVertical,
       langItems,
       searchToggleBookmark,
       searchNextBookmark,
@@ -778,8 +780,8 @@ export class MenuBar {
           disabled('Unfold Level 9'),
         ]),
         sep(),
-        disabled('Split Horizontal'),
-        disabled('Split Vertical'),
+        enabled('Split Horizontal', viewSplitHorizontal),
+        enabled('Split Vertical', viewSplitVertical),
       ],
     };
 
@@ -1023,6 +1025,10 @@ export interface MenuBarActions {
   viewEditorInspector: () => void;
   viewLanguageInspector: () => void;
   viewLuaConsole: () => void;
+  /** View → Split Horizontal (secondary pane stacked below). */
+  viewSplitHorizontal: () => void;
+  /** View → Split Vertical (secondary pane side-by-side). */
+  viewSplitVertical: () => void;
   langItems: LangItem[];
   // Bookmarks (Search → Bookmarks submenu)
   searchToggleBookmark: () => void;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import type { DocumentStore, DocId } from '../services/document-store';
+import type { DocumentStore, DocId, ViewId } from '../services/document-store';
 import { showContextMenu } from './context-menu';
 
 export interface TabBarContextCallbacks {
@@ -9,6 +9,8 @@ export interface TabBarContextCallbacks {
   onCloseAllToLeft: () => void;
   onCloseAllToRight: () => void;
   onReload: () => void;
+  /** Move the tab to the other split view (present only when split is available). */
+  onMoveToOtherView?: (id: DocId) => void;
 }
 
 export class TabBar {
@@ -27,6 +29,8 @@ export class TabBar {
     private onClose: (id: DocId) => void,
     private onNew: () => void,
     private contextCallbacks?: TabBarContextCallbacks,
+    /** Which split pane this tab strip represents (0 = primary, 1 = secondary). */
+    private viewId: ViewId = 0,
   ) {
     this._onResize = () => this.updateOverflow();
     this._onDocClick = (e: MouseEvent) => {
@@ -53,10 +57,11 @@ export class TabBar {
     this.closeDropdown();
     this.root.innerHTML = '';
 
-    for (const doc of this.store.list()) {
+    const activeIdForView = this.store.activeForView(this.viewId)?.id;
+    for (const doc of this.store.listForView(this.viewId)) {
       const tab = document.createElement('div');
       tab.className =
-        'tab' + (doc.id === this.store.activeId ? ' active' : '') + (doc.dirty ? ' dirty' : '');
+        'tab' + (doc.id === activeIdForView ? ' active' : '') + (doc.dirty ? ' dirty' : '');
       tab.dataset.id = doc.id;
       // Disk-state indicator (faithful to NotepadNext tab disk icon): blue = in
       // sync with disk, red = unsaved edits, red+ring = changed externally.
@@ -127,6 +132,12 @@ export class TabBar {
             },
             { label: '', type: 'separator', enabled: false },
             {
+              label: 'Move to Other View',
+              enabled: cb?.onMoveToOtherView !== undefined,
+              action: cb?.onMoveToOtherView ? () => cb.onMoveToOtherView!(doc.id) : undefined,
+            },
+            { label: '', type: 'separator', enabled: false },
+            {
               label: 'Copy Full Path',
               // Browsers deliberately hide absolute paths from File System Access
               // handles (security), so only the file name is available — copy that.
@@ -163,16 +174,18 @@ export class TabBar {
       this.root.appendChild(tab);
     }
 
-    // New-tab button
+    // New-tab button. View 0 keeps the bare id for e2e/test back-compat; the
+    // secondary strip suffixes it so the two bars don't share a DOM id.
     const add = document.createElement('button');
-    add.id = 'tab-new';
+    add.id = this.viewId === 0 ? 'tab-new' : 'tab-new-1';
+    add.className = 'tab-new-btn';
     add.textContent = '+';
     add.addEventListener('click', () => this.onNew());
     this.root.appendChild(add);
 
     // Overflow chevron button (hidden by default; shown in updateOverflow)
     const chevron = document.createElement('button');
-    chevron.id = 'tab-overflow';
+    chevron.id = this.viewId === 0 ? 'tab-overflow' : 'tab-overflow-1';
     chevron.className = 'tab-overflow-btn';
     chevron.textContent = '»';
     chevron.setAttribute('aria-haspopup', 'menu');
@@ -211,7 +224,7 @@ export class TabBar {
     }
 
     // Available width = strip width minus the new-tab button and overflow button.
-    const addBtn = this.root.querySelector<HTMLElement>('#tab-new');
+    const addBtn = this.root.querySelector<HTMLElement>('.tab-new-btn');
     const addWidth = addBtn ? addBtn.offsetWidth : 0;
     // Use the overflow button's own width for reservation, or a default of 28px
     // (it will be hidden initially so offsetWidth may be 0).
@@ -247,12 +260,12 @@ export class TabBar {
     menu.className = 'tab-overflow-menu';
     menu.setAttribute('role', 'menu');
 
-    const docs = this.store.list();
+    const activeIdForView = this.store.activeForView(this.viewId)?.id;
     for (const id of overflowIds) {
-      const doc = docs.find((d) => d.id === id);
+      const doc = this.store.get(id);
       if (!doc) continue;
       const li = document.createElement('li');
-      li.className = 'tab-overflow-item' + (doc.id === this.store.activeId ? ' active' : '');
+      li.className = 'tab-overflow-item' + (doc.id === activeIdForView ? ' active' : '');
       li.setAttribute('role', 'menuitem');
       li.setAttribute('tabindex', '0');
       li.textContent = (doc.dirty ? '● ' : '') + doc.name;

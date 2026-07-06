@@ -12,7 +12,12 @@ export interface SavedMacro {
 export type PersistedDoc = Doc;
 export interface SessionSnapshot {
   docs: PersistedDoc[];
+  /** Focused-view active doc id (kept for back-compat with pre-split sessions). */
   activeId: DocId | null;
+  /** Per-view active doc ids [primary, secondary]. Optional for old snapshots. */
+  activeIds?: [DocId | null, DocId | null];
+  /** Split orientation when a secondary pane is present ('h' stacked, 'v' side-by-side). */
+  splitOrientation?: 'h' | 'v' | null;
 }
 
 export interface SearchPrefs {

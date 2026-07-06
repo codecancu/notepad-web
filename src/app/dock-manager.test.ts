@@ -17,6 +17,7 @@ vi.mock('dockview-core', () => {
     _panels: Map<string, { id: string; component: string; title: string }> = new Map();
     _layoutChangeListeners: Array<() => void> = [];
     _removePanelListeners: Array<(panel: { id: string }) => void> = [];
+    _activeGroupListeners: Array<(group: unknown) => void> = [];
 
     constructor() {
       /* no-op — container / opts ignored in tests */
@@ -26,9 +27,22 @@ vi.mock('dockview-core', () => {
       this._panels.set(opts.id, opts);
     }
 
+    // Stable group object per panel id so identity comparisons (=== activeGroup)
+    // behave like the real dockview.
+    _groups: Map<string, unknown> = new Map();
+
     getGroupPanel(id: string) {
       if (!this._panels.has(id)) return undefined;
       const panels = this._panels;
+      if (!this._groups.has(id)) {
+        this._groups.set(id, {
+          element: document.createElement('div'),
+          locked: false,
+          setActive() {
+            /* no-op in tests */
+          },
+        });
+      }
       return {
         id,
         api: {
@@ -36,10 +50,7 @@ vi.mock('dockview-core', () => {
             panels.delete(id);
           },
         },
-        group: {
-          element: document.createElement('div'),
-          locked: false,
-        },
+        group: this._groups.get(id),
       };
     }
 
@@ -76,11 +87,27 @@ vi.mock('dockview-core', () => {
       };
     }
 
+    onDidActiveGroupChange(fn: (group: unknown) => void) {
+      this._activeGroupListeners.push(fn);
+      return {
+        dispose() {
+          /* no-op */
+        },
+      };
+    }
+
     /** Test helper: simulate dockview removing a panel natively. */
     simulateNativeRemove(id: string): void {
       this._panels.delete(id);
       for (const fn of this._removePanelListeners) {
         fn({ id });
+      }
+    }
+
+    /** Test helper: simulate the focused group changing. */
+    simulateActiveGroupChange(group: unknown): void {
+      for (const fn of this._activeGroupListeners) {
+        fn(group);
       }
     }
 
@@ -259,5 +286,60 @@ describe('DockManager', () => {
     // A subsequent togglePanel should SHOW it (not attempt to close a ghost entry).
     manager.togglePanel('p-reopen');
     expect(manager.isPanelVisible('p-reopen')).toBe(true);
+  });
+});
+
+describe('DockManager — split view', () => {
+  let manager: DockManager;
+
+  beforeEach(() => {
+    manager = new DockManager();
+  });
+
+  it('is not split by default', async () => {
+    await manager.init(makeEl(), makeEl('editor'), makeEl('tabbar'));
+    expect(manager.isSplit()).toBe(false);
+  });
+
+  it('addSecondaryEditorGroup adds the editor2 group once a host is set', async () => {
+    await manager.init(makeEl(), makeEl('editor'), makeEl('tabbar'));
+    manager.setSecondaryEditorHost(makeEl('dock-editor-host-2'));
+    manager.addSecondaryEditorGroup('right');
+    expect(manager.isSplit()).toBe(true);
+  });
+
+  it('addSecondaryEditorGroup is a no-op without a host', async () => {
+    await manager.init(makeEl(), makeEl('editor'), makeEl('tabbar'));
+    manager.addSecondaryEditorGroup('right');
+    expect(manager.isSplit()).toBe(false);
+  });
+
+  it('removeSecondaryEditorGroup collapses the split', async () => {
+    await manager.init(makeEl(), makeEl('editor'), makeEl('tabbar'));
+    manager.setSecondaryEditorHost(makeEl('dock-editor-host-2'));
+    manager.addSecondaryEditorGroup('below');
+    expect(manager.isSplit()).toBe(true);
+
+    manager.removeSecondaryEditorGroup();
+    expect(manager.isSplit()).toBe(false);
+  });
+
+  it('onEditorFocusChange fires 1 for the secondary group and 0 otherwise', async () => {
+    await manager.init(makeEl(), makeEl('editor'), makeEl('tabbar'));
+    manager.setSecondaryEditorHost(makeEl('dock-editor-host-2'));
+    manager.addSecondaryEditorGroup('right');
+
+    const seen: Array<0 | 1> = [];
+    manager.onEditorFocusChange((v) => seen.push(v));
+
+    const comp = manager.component as unknown as {
+      getGroupPanel(id: string): { group: unknown } | undefined;
+      simulateActiveGroupChange(group: unknown): void;
+    };
+    const secondaryGroup = comp.getGroupPanel('editor2')!.group;
+    const primaryGroup = comp.getGroupPanel('editor')!.group;
+    comp.simulateActiveGroupChange(secondaryGroup);
+    comp.simulateActiveGroupChange(primaryGroup);
+    expect(seen).toEqual([1, 0]);
   });
 });

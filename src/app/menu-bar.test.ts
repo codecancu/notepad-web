@@ -85,6 +85,8 @@ function makeActions(overrides: Partial<MenuBarActions> = {}): MenuBarActions {
     viewEditorInspector: noop,
     viewLanguageInspector: noop,
     viewLuaConsole: noop,
+    viewSplitHorizontal: noop,
+    viewSplitVertical: noop,
     fileOpenFolder: noop,
     langItems: [],
     searchToggleBookmark: noop,
