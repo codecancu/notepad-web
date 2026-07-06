@@ -113,6 +113,12 @@ export class DockManager {
   private _visiblePanels = new Set<string>();
   /** Stored resize handler so it can be removed on re-init. */
   private _resizeHandler: (() => void) | null = null;
+  /** Host element for the secondary (split) editor group, set lazily. */
+  private _secondaryHost: HTMLElement | null = null;
+  /** Stable renderer for the secondary editor group (reused across from/toJSON). */
+  private _secondaryRenderer: EditorRenderer | null = null;
+  /** Callback fired when the focused editor group changes (0 = primary, 1 = secondary). */
+  private _onEditorFocusChange: ((view: 0 | 1) => void) | null = null;
 
   /**
    * Initialise the dock layout inside `container`.
@@ -161,6 +167,11 @@ export class DockManager {
       createComponent: (options: CreateComponentOptions): IContentRenderer => {
         if (options.name === 'editor') {
           return editorRenderer;
+        }
+        // Secondary (split) editor group — resolved to the host set via
+        // setSecondaryEditorHost(). Present when restoring a persisted split.
+        if (options.name === 'editor2' && this._secondaryRenderer) {
+          return this._secondaryRenderer;
         }
         // Look up the registered panel definition.
         const def = this._panelDefs.get(options.name);
@@ -216,6 +227,19 @@ export class DockManager {
     // side/bottom panel headers intact.
     this._markEditorGroup();
 
+    // If a persisted layout restored a secondary editor group, mark+lock it too.
+    if (this._component.getGroupPanel('editor2')) {
+      this._markSecondaryGroup();
+    }
+
+    // Track which editor group is focused so the app can route commands to it.
+    // The event delivers the newly-active group directly.
+    this._component.onDidActiveGroupChange((activeGroup) => {
+      if (!this._onEditorFocusChange) return;
+      const secondary = this._component?.getGroupPanel('editor2')?.group;
+      this._onEditorFocusChange(secondary && activeGroup === secondary ? 1 : 0);
+    });
+
     // Keep _visiblePanels in sync when the user closes a panel via dockview's
     // own close button (native close bypasses togglePanel).
     this._component.onDidRemovePanel((panel: IDockviewPanel) => {
@@ -270,6 +294,61 @@ export class DockManager {
   /** Expose the raw dockview component for testing. */
   get component(): DockviewComponent | null {
     return this._component;
+  }
+
+  // ── Split view (secondary editor group) ──────────────────────────────────────
+
+  /**
+   * Provide the DOM host (tabbar + editor wrapper) for the secondary editor group.
+   * Must be called before addSecondaryEditorGroup() or before init() when a
+   * persisted split is being restored, so createComponent can resolve 'editor2'.
+   */
+  setSecondaryEditorHost(hostEl: HTMLElement): void {
+    this._secondaryHost = hostEl;
+    this._secondaryRenderer = new EditorRenderer(hostEl);
+  }
+
+  /** True if the secondary editor group is currently present. */
+  isSplit(): boolean {
+    return !!this._component?.getGroupPanel('editor2');
+  }
+
+  /**
+   * Create the secondary editor group beside the primary.
+   * direction 'right' = vertical split (side-by-side), 'below' = horizontal (stacked).
+   * No-op if already split or if the secondary host hasn't been set.
+   */
+  addSecondaryEditorGroup(direction: 'right' | 'below'): void {
+    if (!this._component || !this._secondaryHost || this.isSplit()) return;
+    const editorPanel: IDockviewPanel | undefined = this._component.getGroupPanel('editor');
+    const refGroup = editorPanel?.group;
+    this._component.addPanel({
+      id: 'editor2',
+      component: 'editor2',
+      title: 'Editor 2',
+      position: refGroup ? { referenceGroup: refGroup, direction } : { direction },
+    });
+    this._markSecondaryGroup();
+  }
+
+  /** Remove the secondary editor group (collapse the split). No-op if not split. */
+  removeSecondaryEditorGroup(): void {
+    if (!this._component) return;
+    const panel = this._component.getGroupPanel('editor2');
+    if (panel) panel.api.close();
+  }
+
+  /** Register a callback invoked when the focused editor group changes (0/1). */
+  onEditorFocusChange(cb: (view: 0 | 1) => void): void {
+    this._onEditorFocusChange = cb;
+  }
+
+  /** Programmatically focus an editor group (0 = primary, 1 = secondary). */
+  focusEditorGroup(view: 0 | 1): void {
+    if (!this._component) return;
+    const id = view === 1 ? 'editor2' : 'editor';
+    const group = this._component.getGroupPanel(id)?.group;
+    if (group) group.setActive(true);
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
@@ -339,6 +418,20 @@ export class DockManager {
     // Add marker class to the group's root DOM element.
     group.element.classList.add('dock-editor-group');
     // Lock the group: prevents drag-out and close via native controls.
+    group.locked = true;
+  }
+
+  /**
+   * Mark+lock the secondary editor group the same way as the primary so its
+   * native dockview tab strip is hidden (our custom #tabbar is used instead) and
+   * it can't be dragged out or closed via native controls.
+   */
+  private _markSecondaryGroup(): void {
+    if (!this._component) return;
+    const panel: IDockviewPanel | undefined = this._component.getGroupPanel('editor2');
+    const group = panel?.group;
+    if (!group) return;
+    group.element.classList.add('dock-editor-group');
     group.locked = true;
   }
 

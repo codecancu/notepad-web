@@ -8,19 +8,28 @@ import type { Doc } from '../services/document-store';
 export class FileActions {
   private file: FileService;
   private store: DocumentStore;
-  private controller: EditorController;
+  /** Resolves the currently focused controller (follows split-view focus). */
+  private getController: () => EditorController;
   private confirmFn: (m: string) => boolean;
 
   constructor(deps: {
     file: FileService;
     store: DocumentStore;
     controller: EditorController;
+    /** Optional focused-controller ref; when given, file ops target the focused pane. */
+    controllerRef?: { current: EditorController };
     confirmFn?: (m: string) => boolean;
   }) {
     this.file = deps.file;
     this.store = deps.store;
-    this.controller = deps.controller;
+    const ref = deps.controllerRef;
+    this.getController = ref ? () => ref.current : () => deps.controller;
     this.confirmFn = deps.confirmFn ?? ((m) => confirm(m));
+  }
+
+  /** The controller for the currently focused editor pane. */
+  private get controller(): EditorController {
+    return this.getController();
   }
 
   async openFile(): Promise<void> {

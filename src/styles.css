@@ -40,7 +40,8 @@ body {
   position: relative;
   overflow: hidden;
 }
-#editor {
+#editor,
+#editor-2 {
   width: 100%;
   height: 100%;
   /* Bound the height so CM6's .cm-editor can fill it and scroll internally. */
@@ -89,7 +90,8 @@ body {
 }
 
 /* ── Tab bar ──────────────────────────────────────────────────────────────── */
-#tabbar {
+#tabbar,
+#tabbar-2 {
   display: flex;
   overflow: hidden;
   background: rgb(192, 192, 192);
@@ -255,7 +257,7 @@ body {
 }
 
 /* ── New-tab button ─────────────────────────────────────────────────────────── */
-#tab-new {
+.tab-new-btn {
   background: none;
   border: none;
   color: #444;
@@ -266,7 +268,7 @@ body {
   align-self: center;
 }
 
-#tab-new:hover {
+.tab-new-btn:hover {
   color: #000;
 }
 

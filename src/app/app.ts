@@ -7,6 +7,8 @@ import { foldAll, unfoldAll } from '@codemirror/language';
 import { gotoLine, findNext, findPrevious } from '@codemirror/search';
 import { notepadLightMarker, notepadDarkMarker } from '../editor/notepad-light-theme';
 import { DocumentStore } from '../services/document-store';
+import type { ViewId, DocId } from '../services/document-store';
+import type { DockManager } from './dock-manager';
 import { PersistenceService } from '../services/persistence-service';
 import { SettingsService } from '../services/settings-service';
 import type { Settings } from '../services/settings-service';
@@ -76,6 +78,29 @@ import {
   fnToName,
 } from '../editor/macro';
 
+/**
+ * Two-phase secondary-editor factory result. The host DOM is built first and
+ * mounted into the dock group; the CM6 EditorView is created only afterwards via
+ * mount() — creating it before the dock panel is added breaks dockview's group
+ * insertion (and creating it in an attached, sized element measures correctly).
+ */
+export interface SecondaryEditorHost {
+  /** The full secondary host element (tabbar + editor) mounted into the dock. */
+  hostEl: HTMLElement;
+  /** The #tabbar element inside the secondary editor host (for the 2nd TabBar). */
+  tabbarEl: HTMLElement;
+  /** Create the EditorView + EditorController once the host is mounted. */
+  mount(): { view: EditorView; controller: EditorController };
+}
+
+/** A fully-mounted secondary (split) editor pane. */
+interface SecondaryEditor {
+  view: EditorView;
+  controller: EditorController;
+  tabbarEl: HTMLElement;
+  hostEl: HTMLElement;
+}
+
 export interface AppDeps {
   view: EditorView;
   controller: EditorController;
@@ -92,15 +117,243 @@ export interface AppDeps {
   symbolCompartment?: Compartment;
   /** Optional RecentFilesService override (for testing). */
   recentFiles?: RecentFilesService;
+  /**
+   * Focused-editor refs. All editor commands read `.current`, so repointing
+   * these on focus change routes every command to the focused split pane.
+   * If omitted (unit tests), App creates them from view/controller.
+   */
+  viewRef?: { current: EditorView };
+  controllerRef?: { current: EditorController };
+  /** DockManager for split-view group management. Omitted in unit tests. */
+  dockManager?: DockManager;
+  /** Factory that builds the secondary editor host on first split. Omitted in unit tests. */
+  createSecondaryEditor?: () => SecondaryEditorHost;
 }
 
 export class App {
-  private controller: EditorController;
-  private view: EditorView;
+  /** Focused view/controller refs — the single source of truth for "the editor". */
+  private viewRef: { current: EditorView };
+  private controllerRef: { current: EditorController };
+  /** The always-present primary pane. */
+  private primaryView: EditorView;
+  private primaryController: EditorController;
+  /** The secondary pane + its tab strip, created lazily on first split. */
+  private secondary: SecondaryEditor | null = null;
+  private secondaryTabBar: TabBar | null = null;
+  /** The primary tab strip, kept so it can be rebuilt/queried. */
+  private primaryTabBar: TabBar | null = null;
+  /** Last-applied settings, replayed onto the secondary pane when it is created. */
+  private lastSettings: Settings | null = null;
+  /** Refresh the status bar cursor from the focused view (set during start()). */
+  private refreshStatusCursor: (() => void) | null = null;
+  /** Lazily-populated refs the tab-bar context menu closes over. */
+  private fileActionsRef: { current: FileActions | null } = { current: null };
+  private doSaveAsRef: { current: (() => Promise<void>) | null } = { current: null };
+  /** Reentrancy guard so collapseSplit()'s store mutations don't re-trigger it. */
+  private collapsing = false;
+  /** True when a persisted split is being restored (drives finishStartup()). */
+  private restoredSplit = false;
+  /** Secondary host built during restore, mounted in finishStartup() once its dock group exists. */
+  private pendingSecondaryHost: SecondaryEditorHost | null = null;
+
+  /** The focused editor view (follows the focused split pane). */
+  private get view(): EditorView {
+    return this.viewRef.current;
+  }
+  /** The focused editor controller (follows the focused split pane). */
+  private get controller(): EditorController {
+    return this.controllerRef.current;
+  }
 
   constructor(private deps: AppDeps) {
-    this.controller = deps.controller;
-    this.view = deps.view;
+    this.primaryController = deps.controller;
+    this.primaryView = deps.view;
+    this.viewRef = deps.viewRef ?? { current: deps.view };
+    this.controllerRef = deps.controllerRef ?? { current: deps.controller };
+  }
+
+  /** The controller for a specific pane (null if that pane doesn't exist). */
+  private controllerFor(view: ViewId): EditorController | null {
+    return view === 0 ? this.primaryController : (this.secondary?.controller ?? null);
+  }
+  private viewFor(view: ViewId): EditorView | null {
+    return view === 0 ? this.primaryView : (this.secondary?.view ?? null);
+  }
+
+  /**
+   * Repoint the focused refs to a pane and sync the store + status bar.
+   * Idempotent: does NOT drive the dock (call dockManager.focusEditorGroup for that)
+   * so it is safe to invoke from the dock's own focus-change event.
+   */
+  private applyFocus(view: ViewId): void {
+    const v = this.viewFor(view);
+    const c = this.controllerFor(view);
+    if (!v || !c) return;
+    this.viewRef.current = v;
+    this.controllerRef.current = c;
+    if (this.deps.store.focusedView() !== view) this.deps.store.setFocusedView(view);
+    this.refreshStatusCursor?.();
+  }
+
+  /** Build a tab strip for a given split pane, wired to that pane's controller. */
+  private makeTabBar(
+    root: HTMLElement,
+    viewId: ViewId,
+    fileActionsRef: { current: FileActions | null },
+    doSaveAsRef: { current: (() => Promise<void>) | null },
+  ): TabBar {
+    const store = this.deps.store;
+    return new TabBar(
+      root,
+      store,
+      (id) => {
+        this.applyFocus(viewId);
+        store.setActiveForView(viewId, id);
+        this.controllerFor(viewId)?.showDoc(id);
+        this.deps.dockManager?.focusEditorGroup(viewId);
+      },
+      (id) => {
+        const doc = store.get(id);
+        if (doc?.dirty && !confirm(`Discard unsaved changes to ${doc.name}?`)) return;
+        store.remove(id);
+        const next = store.activeForView(viewId);
+        if (next) {
+          this.controllerFor(viewId)?.showDoc(next.id);
+        } else if (viewId === 0) {
+          const d = store.create();
+          this.controllerFor(0)?.showDoc(d.id);
+        }
+        this.controllerFor(viewId)?.closeDoc(id);
+        this.maybeCollapseSplit();
+      },
+      () => {
+        this.applyFocus(viewId);
+        const d = store.create(); // create() adds to the focused view (== viewId)
+        this.controllerFor(viewId)?.showDoc(d.id);
+      },
+      {
+        onSave: () => void fileActionsRef.current?.saveActive(),
+        onSaveAs: () => void doSaveAsRef.current?.(),
+        onCloseAllExceptActive: () => fileActionsRef.current?.closeAllExceptActive(),
+        onCloseAllToLeft: () => fileActionsRef.current?.closeAllToLeft(),
+        onCloseAllToRight: () => fileActionsRef.current?.closeAllToRight(),
+        onReload: () => void fileActionsRef.current?.reloadActive(),
+        onMoveToOtherView: this.deps.createSecondaryEditor
+          ? (id) => this.moveToOtherView(id)
+          : undefined,
+      },
+      viewId,
+    );
+  }
+
+  /** Push settings to a single pane (font size + tab/wrap/autocomplete/theme). */
+  private applySettingsToPane(s: Settings, controller: EditorController, view: EditorView): void {
+    view.dom.style.fontSize = `${s.fontSize}px`;
+    controller.setEditorOptions({ tabSize: s.tabSize, wordWrap: s.wordWrap });
+    const autoCompletionExt = s.autoCompletion
+      ? autocompletion({ override: [wordCompletionSource] })
+      : [];
+    controller.setAutoCompletion(autoCompletionExt);
+    const eff = new ThemeService(() => s.theme).effective();
+    controller.setTheme(eff === 'dark' ? notepadDarkMarker : notepadLightMarker);
+  }
+
+  // ── Split view ────────────────────────────────────────────────────────────
+
+  /** Create the secondary pane + tab strip if not present. Returns false if unsupported. */
+  private ensureSecondary(orientation: 'h' | 'v'): boolean {
+    if (!this.deps.dockManager || !this.deps.createSecondaryEditor) return false;
+    if (this.secondary) return true;
+    // Phase 1: build the host DOM and register it, then add the dock group so the
+    // host is attached. Phase 2: create the EditorView into the mounted host.
+    const host = this.deps.createSecondaryEditor();
+    this.deps.dockManager.setSecondaryEditorHost(host.hostEl);
+    this.deps.dockManager.addSecondaryEditorGroup(orientation === 'h' ? 'below' : 'right');
+    const { view, controller } = host.mount();
+    this.secondary = { view, controller, hostEl: host.hostEl, tabbarEl: host.tabbarEl };
+    this.secondaryTabBar = this.makeTabBar(host.tabbarEl, 1, this.fileActionsRef, this.doSaveAsRef);
+    this.secondaryTabBar.render();
+    if (this.lastSettings) this.applySettingsToPane(this.lastSettings, controller, view);
+    return true;
+  }
+
+  /** View → Split Horizontal / Vertical. Toggles the split off if already split. */
+  private doSplit(orientation: 'h' | 'v'): void {
+    const store = this.deps.store;
+    if (this.secondary) {
+      this.collapseSplit();
+      return;
+    }
+    if (!this.ensureSecondary(orientation)) return;
+    store.setSplitOrientation(orientation);
+    const activePrimary = store.activeForView(0);
+    if (activePrimary) this.moveDocToView(activePrimary.id, 1);
+  }
+
+  /** Move a document into another pane, refreshing both panes and focus. */
+  private moveDocToView(id: DocId, target: ViewId): void {
+    const store = this.deps.store;
+    const source: ViewId = target === 1 ? 0 : 1;
+    const srcController = this.controllerFor(source);
+    const tgtController = this.controllerFor(target);
+    if (!tgtController) return;
+    store.moveToView(id, target); // focus=target, active[target]=id, source active re-pointed
+    srcController?.closeDoc(id);
+    const srcActive = store.activeForView(source);
+    if (srcActive) {
+      srcController?.showDoc(srcActive.id);
+    } else if (source === 0) {
+      // Primary emptied — give it a fresh untitled so it's never blank.
+      store.setFocusedView(0);
+      const d = store.create();
+      store.setFocusedView(target);
+      srcController?.showDoc(d.id);
+    }
+    tgtController.showDoc(id);
+    this.deps.dockManager?.focusEditorGroup(target);
+    this.applyFocus(target);
+    this.primaryTabBar?.render();
+    this.secondaryTabBar?.render();
+  }
+
+  /** Tab context-menu "Move to Other View". */
+  private moveToOtherView(id: DocId): void {
+    const store = this.deps.store;
+    const cur = (store.get(id)?.view ?? 0) as ViewId;
+    const target: ViewId = cur === 0 ? 1 : 0;
+    if (target === 1 && !this.secondary && !this.ensureSecondary('v')) return;
+    this.moveDocToView(id, target);
+    this.maybeCollapseSplit();
+  }
+
+  /** Collapse the split when the secondary pane has no documents left. */
+  private maybeCollapseSplit(): void {
+    if (this.collapsing) return;
+    if (this.secondary && this.deps.store.listForView(1).length === 0) {
+      this.collapseSplit();
+    }
+  }
+
+  /** Tear down the secondary pane and return to single view. */
+  private collapseSplit(): void {
+    if (!this.secondary || this.collapsing) return;
+    this.collapsing = true;
+    const store = this.deps.store;
+    // Defensive: move any stragglers back to the primary pane.
+    for (const d of store.listForView(1)) store.moveToView(d.id, 0);
+    this.deps.dockManager?.removeSecondaryEditorGroup();
+    this.secondaryTabBar?.dispose();
+    this.secondaryTabBar = null;
+    this.secondary.controller.dispose();
+    this.secondary = null;
+    this.restoredSplit = false;
+    store.setSplitOrientation(null);
+    store.setFocusedView(0);
+    this.applyFocus(0);
+    const a = store.activeForView(0);
+    if (a) this.primaryController.showDoc(a.id);
+    this.primaryTabBar?.render();
+    this.collapsing = false;
   }
 
   /**
@@ -131,50 +384,38 @@ export class App {
     const restored = await this.deps.persistence.loadSession().catch(() => null);
     if (restored && restored.docs.length) {
       restored.docs.forEach((d) => this.deps.store.add(d));
-      if (restored.activeId) this.deps.store.setActive(restored.activeId);
+      // Per-view active restore, falling back to the legacy single activeId.
+      if (restored.activeIds) {
+        const [a0, a1] = restored.activeIds;
+        if (a0) this.deps.store.setActiveForView(0, a0);
+        if (a1) this.deps.store.setActiveForView(1, a1);
+      } else if (restored.activeId) {
+        this.deps.store.setActive(restored.activeId);
+      }
+      this.deps.store.setFocusedView(0);
+      if (restored.splitOrientation) this.deps.store.setSplitOrientation(restored.splitOrientation);
     } else {
       this.deps.store.create();
     }
 
     // fileActionsRef and doSaveAsRef are populated after their respective values are
-    // created below. The tabBarContextCallbacks wrapper closes over them lazily.
-    const fileActionsRef: { current: FileActions | null } = { current: null };
-    const doSaveAsRef: { current: (() => Promise<void>) | null } = { current: null };
+    // created below. The tab-bar context callbacks close over them lazily.
+    const fileActionsRef = this.fileActionsRef;
+    const doSaveAsRef = this.doSaveAsRef;
 
-    const tabbar = new TabBar(
+    const tabbar = this.makeTabBar(
       document.getElementById('tabbar')!,
-      this.deps.store,
-      (id) => {
-        this.deps.store.setActive(id);
-        this.controller.showDoc(id);
-      },
-      (id) => {
-        const doc = this.deps.store.get(id);
-        if (doc?.dirty && !confirm(`Discard unsaved changes to ${doc.name}?`)) return;
-        this.deps.store.remove(id);
-        const next = this.deps.store.active();
-        if (next) {
-          this.controller.showDoc(next.id);
-        } else {
-          const d = this.deps.store.create();
-          this.controller.showDoc(d.id);
-        }
-        this.controller.closeDoc(id);
-      },
-      () => {
-        const d = this.deps.store.create();
-        this.controller.showDoc(d.id);
-      },
-      {
-        onSave: () => void fileActionsRef.current?.saveActive(),
-        onSaveAs: () => void doSaveAsRef.current?.(),
-        onCloseAllExceptActive: () => fileActionsRef.current?.closeAllExceptActive(),
-        onCloseAllToLeft: () => fileActionsRef.current?.closeAllToLeft(),
-        onCloseAllToRight: () => fileActionsRef.current?.closeAllToRight(),
-        onReload: () => void fileActionsRef.current?.reloadActive(),
-      },
+      0,
+      fileActionsRef,
+      doSaveAsRef,
     );
+    this.primaryTabBar = tabbar;
     tabbar.render();
+
+    // Route focus changes from the dock (clicking into a pane) to our refs, and
+    // collapse the split when the secondary pane empties.
+    this.deps.dockManager?.onEditorFocusChange((v) => this.applyFocus(v));
+    this.deps.store.subscribe(() => this.maybeCollapseSplit());
 
     const sync = new SessionSync(this.deps.store, this.deps.persistence);
     sync.attach();
@@ -198,7 +439,8 @@ export class App {
     const fileActions = new FileActions({
       file: this.deps.file,
       store: this.deps.store,
-      controller: this.controller,
+      controller: this.primaryController,
+      controllerRef: this.controllerRef,
     });
     fileActionsRef.current = fileActions;
 
@@ -229,47 +471,36 @@ export class App {
 
     // StatusBar: shows language · EOL · cursor for the active doc.
     const statusbar = new StatusBar(document.getElementById('statusbar')!, this.deps.store);
-    // Update cursor position from CM6 view update — wired via the controller's
-    // onUpdate which is called from the updateListener extension in editor-page.ts.
-    this.view.dom.addEventListener('cm-cursor-change', (e: Event) => {
-      const ce = e as CustomEvent<{ line: number; col: number }>;
+    // Update cursor position from CM6 view updates. The cm-cursor-change event
+    // bubbles to document from EITHER split pane and carries a `view` id, so we
+    // listen once on document and reflect only the currently focused pane.
+    document.addEventListener('cm-cursor-change', (e: Event) => {
+      const ce = e as CustomEvent<{ line: number; col: number; view?: ViewId }>;
+      if (ce.detail.view !== undefined && ce.detail.view !== this.deps.store.focusedView()) return;
       statusbar.setCursor(ce.detail.line, ce.detail.col);
     });
+    // On focus switch, re-read the newly focused pane's cursor into the status bar.
+    this.refreshStatusCursor = () => {
+      const v = this.view;
+      const pos = v.state.selection.main.head;
+      const line = v.state.doc.lineAt(pos);
+      statusbar.setCursor(line.number, pos - line.from + 1);
+    };
 
     // Track the current word-wrap state so the toolbar can read it synchronously.
     // Initialised to false; updated by applySettings() and doWordWrap().
     let wordWrapActive = false;
 
     // applySettings: push fontSize/tabSize/wordWrap/theme/autoCompletion to CM6.
+    // Applied to BOTH split panes so they stay visually consistent; the current
+    // settings are also stored so a pane created later (split) inherits them.
     const applySettings = (s: Settings): void => {
       wordWrapActive = s.wordWrap;
-      // ── Font size ──────────────────────────────────────────────────────────
-      // Written to the editor DOM element's inline style; __getFontSize() reads it.
-      this.view.dom.style.fontSize = `${s.fontSize}px`;
-
-      // ── Tab size + Word wrap ───────────────────────────────────────────────
-      // Delegate to EditorController.setEditorOptions() which BOTH reconfigures
-      // the active view's compartments AND stores the current Extension values so
-      // that new document states created by showDoc() (new tabs opened later)
-      // are seeded with the current settings instead of CM6 defaults.
-      this.controller.setEditorOptions({ tabSize: s.tabSize, wordWrap: s.wordWrap });
-
-      // ── Autocompletion (AutoCompletion decorator faithful mapping) ─────────
-      // Gated by Settings.autoCompletion. Uses wordCompletionSource (document-word
-      // source faithful to NotepadNext AutoCompletion). The compartment lives on the
-      // controller so new tabs opened after a settings change inherit the setting.
-      const autoCompletionExt = s.autoCompletion
-        ? autocompletion({ override: [wordCompletionSource] })
-        : [];
-      this.controller.setAutoCompletion(autoCompletionExt);
-
-      // ── Theme ──────────────────────────────────────────────────────────────
-      const eff = new ThemeService(() => s.theme).effective();
-      // Swap the theme compartment MARKER: dark vs light. Both modes are fully
-      // styled by notepadBase's &light/&dark rules (in sharedExtensions); the
-      // marker just selects which scope fires. setTheme() also stores the marker
-      // in _currentThemeExt so tabs opened after a theme change inherit it.
-      this.controller.setTheme(eff === 'dark' ? notepadDarkMarker : notepadLightMarker);
+      this.lastSettings = s;
+      this.applySettingsToPane(s, this.primaryController, this.primaryView);
+      if (this.secondary) {
+        this.applySettingsToPane(s, this.secondary.controller, this.secondary.view);
+      }
     };
 
     // SettingsPanel: opened via Ctrl/Cmd+Comma (handled in keydown above).
@@ -854,6 +1085,8 @@ export class App {
             viewEditorInspector: doEditorInspector,
             viewLanguageInspector: doLanguageInspector,
             viewLuaConsole: doLuaConsole,
+            viewSplitHorizontal: () => this.doSplit('h'),
+            viewSplitVertical: () => this.doSplit('v'),
             langItems: buildLangItems(),
             macroStartRecording: () => {
               startRecording();
@@ -976,6 +1209,8 @@ export class App {
       viewEditorInspector: doEditorInspector,
       viewLanguageInspector: doLanguageInspector,
       viewLuaConsole: doLuaConsole,
+      viewSplitHorizontal: () => this.doSplit('h'),
+      viewSplitVertical: () => this.doSplit('v'),
       fileOpenFolder: doOpenFolder,
       langItems: [],
       searchToggleBookmark: () => runCmd(cmdToggleBookmark),
@@ -1266,5 +1501,53 @@ export class App {
 
     // Apply persisted settings to editor on startup.
     applySettings(loaded);
+
+    // If a split was persisted, build the secondary pane now (its dock group is
+    // added after dockview init, in finishStartup()). lastSettings is set above.
+    if (this.deps.store.hasView(1) && this.deps.createSecondaryEditor && this.deps.dockManager) {
+      this.prepareSecondaryForRestore();
+    }
+  }
+
+  /**
+   * Build the secondary pane's view/tab strip for session restore, without adding
+   * its dock group yet (the group is created — or resolved from the persisted dock
+   * layout — after dockview init, in finishStartup()).
+   */
+  private prepareSecondaryForRestore(): void {
+    if (this.secondary || this.pendingSecondaryHost) return;
+    if (!this.deps.createSecondaryEditor || !this.deps.dockManager) return;
+    // Build + register the host DOM only. The dock group (from the persisted
+    // layout, or added in finishStartup) attaches it; the view mounts afterwards.
+    const host = this.deps.createSecondaryEditor();
+    this.pendingSecondaryHost = host;
+    this.deps.dockManager.setSecondaryEditorHost(host.hostEl);
+    this.restoredSplit = true;
+  }
+
+  /**
+   * Called by the bootstrap after dockview init. Adds the secondary dock group if
+   * a restored split's dock layout didn't already recreate it, then mounts the
+   * secondary EditorView into the (now attached) host and shows its active doc.
+   */
+  finishStartup(): void {
+    const host = this.pendingSecondaryHost;
+    if (!host || !this.deps.dockManager) {
+      this.secondary?.view.requestMeasure();
+      return;
+    }
+    this.pendingSecondaryHost = null;
+    if (!this.deps.dockManager.isSplit()) {
+      const o = this.deps.store.splitOrientation ?? 'v';
+      this.deps.dockManager.addSecondaryEditorGroup(o === 'h' ? 'below' : 'right');
+    }
+    const { view, controller } = host.mount();
+    this.secondary = { view, controller, hostEl: host.hostEl, tabbarEl: host.tabbarEl };
+    this.secondaryTabBar = this.makeTabBar(host.tabbarEl, 1, this.fileActionsRef, this.doSaveAsRef);
+    this.secondaryTabBar.render();
+    if (this.lastSettings) this.applySettingsToPane(this.lastSettings, controller, view);
+    const a = this.deps.store.activeForView(1);
+    if (a) controller.showDoc(a.id);
+    view.requestMeasure();
   }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { EditorState, EditorSelection, Compartment, Prec } from '@codemirror/state';
+import type { Extension } from '@codemirror/state';
 import { EditorView, ViewUpdate, lineNumbers, highlightActiveLine, keymap } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, indentOnInput } from '@codemirror/language';
@@ -8,6 +9,8 @@ import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirro
 import { LuaFactory } from 'wasmoon';
 import './styles.css';
 import { DocumentStore } from './services/document-store';
+import type { ViewId } from './services/document-store';
+import type { SecondaryEditorHost } from './app/app';
 import { PersistenceService } from './services/persistence-service';
 import { SettingsService } from './services/settings-service';
 import { ThemeService } from './services/theme-service';
@@ -188,7 +191,9 @@ const editKeymapCompartment = new Compartment();
 // Mutable reference so the updateListener closure (created before the
 // EditorController is instantiated) can reach the controller once set.
 // The object wrapper avoids the prefer-const lint error on a reassigned let.
+// controllerRef → primary pane controller; controllerBRef → secondary (split) pane.
 const controllerRef: { current: EditorController | null } = { current: null };
+const controllerBRef: { current: EditorController | null } = { current: null };
 
 // ── Shared extensions ────────────────────────────────────────────────────────
 //
@@ -200,80 +205,92 @@ const controllerRef: { current: EditorController | null } = { current: null };
 // We define them once here and pass them to the controller via
 // setSharedExtensions() after construction.  The initial view state also uses
 // them (keeping the two in sync).
-const sharedExtensions = [
-  lineNumbers(),
-  highlightActiveLine(),
-  history(),
-  // Bookmarks: StateField + gutter marker (faithful to NotepadNext BookMarkDecorator).
-  // Must be in sharedExtensions so every per-doc EditorState carries the bookmark
-  // StateField, and view.setState() preserves per-doc bookmarks across tab switches.
-  bookmarkExtension,
-  // Markers: 3 color layers for "Mark All Occurrences" (faithful to NotepadNext MarkerAppDecorator).
-  // Must be in sharedExtensions so every per-doc EditorState carries the markState.
-  markerExtension,
-  // Find-highlight: dedicated yellow highlight for Find dialog's Mark All (P6.3).
-  // Faithful to NotepadNext "find_mark_highlight" INDIC_FULLBOX indicator (#FFCC00).
-  // SEPARATE from the P4.3 marker slots — orthogonal system.
-  findHighlightExtension,
-  // URL links: underlines clickable URLs; Ctrl/Cmd+click opens in new tab.
-  ...urlLinksExtension,
-  // HTML tag auto-close: inserts `</tag>` when user types `>` in HTML docs.
-  // Faithful to NotepadNext HTMLAutoCompleteDecorator.
-  htmlAutoCloseExtension,
-  // Macro recorder: captures key presses and text input during recording.
-  macroRecorderExtension,
-  // BraceMatch → faithful NotepadNext bracket-pair highlight (()[]{})
-  bracketMatching(),
-  indentOnInput(),
-  // SmartHighlighter → highlight all occurrences of the word at caret
-  highlightSelectionMatches(),
-  // SurroundSelection + auto-close brackets → closeBrackets() wraps a
-  // non-empty selection when you type a bracket/quote (faithful NotepadNext).
-  closeBrackets(),
-  // Keymap ordering (highest-priority first via Prec.high):
-  //   1. closeBracketsKeymap — Backspace must delete a bracket pair before
-  //      the default Backspace fires (must be highest priority).
-  //   2. completionKeymap   — Enter/Tab/Escape for autocomplete dropdown.
-  //   3. searchKeymap       — Ctrl+F / Ctrl+H / F3 etc.
-  //   4. indentWithTab + defaultKeymap + historyKeymap — CM6 defaults last.
-  //      indentWithTab makes Tab indent / Shift-Tab dedent (faithful to
-  //      NotepadNext); it sits BELOW completionKeymap's Prec.high Tab, so when
-  //      the autocomplete popup is open Tab accepts the completion, and when it
-  //      is closed Tab indents instead of moving focus out of the editor.
-  //   5. editKeymapCompartment — injected by App.ts (Ctrl+/, Alt+Down …).
-  //      Registered at normal precedence so it doesn't override the above.
-  // search() initializes the searchState StateField so setSearchQuery / findNext /
-  // findPrevious / replaceAll work without requiring the CM6 search panel to be
-  // opened first (P6.2 Find dialog uses these commands directly).
-  search(),
-  Prec.high(keymap.of([...closeBracketsKeymap, ...completionKeymap])),
-  keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
-  editKeymapCompartment.of([]),
-  // Notepad++ light theme base rules (bg/caret/gutter/selection).
-  // Included here so the initial EditorView state (before controller.setSharedExtensions
-  // creates the first per-doc state) renders with the correct light theme immediately.
-  // Per-doc states seed the controller-owned themeCompartment with the active
-  // theme MARKER (default: notepadLightMarker) so new tabs inherit the theme.
-  // Only the base CSS (both &light and &dark scopes) lives here; the marker in
-  // the compartment decides which scope fires — avoiding a light/dark conflict.
-  notepadBase,
-  notepadHighlight,
-  EditorView.updateListener.of((update: ViewUpdate) => {
-    // Route to the controller which writes to the DocumentStore.
-    controllerRef.current?.onUpdate(update);
-    // Emit a custom event for cursor tracking in StatusBar.
-    if (update.selectionSet) {
-      const pos = update.state.selection.main.head;
-      const line = update.state.doc.lineAt(pos);
-      view.dom.dispatchEvent(
-        new CustomEvent('cm-cursor-change', {
-          bubbles: true,
-          detail: { line: line.number, col: pos - line.from + 1 },
-        }),
-      );
-    }
-  }),
-];
+//
+// buildSharedExtensions() is parameterised by the pane's controller ref and view
+// id so the SAME extension set can back a second (split) EditorView, each routing
+// its updates to its own controller and tagging cursor events with its view id.
+function buildSharedExtensions(
+  ctrlRef: { current: EditorController | null },
+  viewId: ViewId,
+): Extension[] {
+  return [
+    lineNumbers(),
+    highlightActiveLine(),
+    history(),
+    // Bookmarks: StateField + gutter marker (faithful to NotepadNext BookMarkDecorator).
+    // Must be in sharedExtensions so every per-doc EditorState carries the bookmark
+    // StateField, and view.setState() preserves per-doc bookmarks across tab switches.
+    bookmarkExtension,
+    // Markers: 3 color layers for "Mark All Occurrences" (faithful to NotepadNext MarkerAppDecorator).
+    // Must be in sharedExtensions so every per-doc EditorState carries the markState.
+    markerExtension,
+    // Find-highlight: dedicated yellow highlight for Find dialog's Mark All (P6.3).
+    // Faithful to NotepadNext "find_mark_highlight" INDIC_FULLBOX indicator (#FFCC00).
+    // SEPARATE from the P4.3 marker slots — orthogonal system.
+    findHighlightExtension,
+    // URL links: underlines clickable URLs; Ctrl/Cmd+click opens in new tab.
+    ...urlLinksExtension,
+    // HTML tag auto-close: inserts `</tag>` when user types `>` in HTML docs.
+    // Faithful to NotepadNext HTMLAutoCompleteDecorator.
+    htmlAutoCloseExtension,
+    // Macro recorder: captures key presses and text input during recording.
+    macroRecorderExtension,
+    // BraceMatch → faithful NotepadNext bracket-pair highlight (()[]{})
+    bracketMatching(),
+    indentOnInput(),
+    // SmartHighlighter → highlight all occurrences of the word at caret
+    highlightSelectionMatches(),
+    // SurroundSelection + auto-close brackets → closeBrackets() wraps a
+    // non-empty selection when you type a bracket/quote (faithful NotepadNext).
+    closeBrackets(),
+    // Keymap ordering (highest-priority first via Prec.high):
+    //   1. closeBracketsKeymap — Backspace must delete a bracket pair before
+    //      the default Backspace fires (must be highest priority).
+    //   2. completionKeymap   — Enter/Tab/Escape for autocomplete dropdown.
+    //   3. searchKeymap       — Ctrl+F / Ctrl+H / F3 etc.
+    //   4. indentWithTab + defaultKeymap + historyKeymap — CM6 defaults last.
+    //      indentWithTab makes Tab indent / Shift-Tab dedent (faithful to
+    //      NotepadNext); it sits BELOW completionKeymap's Prec.high Tab, so when
+    //      the autocomplete popup is open Tab accepts the completion, and when it
+    //      is closed Tab indents instead of moving focus out of the editor.
+    //   5. editKeymapCompartment — injected by App.ts (Ctrl+/, Alt+Down …).
+    //      Registered at normal precedence so it doesn't override the above.
+    // search() initializes the searchState StateField so setSearchQuery / findNext /
+    // findPrevious / replaceAll work without requiring the CM6 search panel to be
+    // opened first (P6.2 Find dialog uses these commands directly).
+    search(),
+    Prec.high(keymap.of([...closeBracketsKeymap, ...completionKeymap])),
+    keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+    editKeymapCompartment.of([]),
+    // Notepad++ light theme base rules (bg/caret/gutter/selection).
+    // Included here so the initial EditorView state (before controller.setSharedExtensions
+    // creates the first per-doc state) renders with the correct light theme immediately.
+    // Per-doc states seed the controller-owned themeCompartment with the active
+    // theme MARKER (default: notepadLightMarker) so new tabs inherit the theme.
+    // Only the base CSS (both &light and &dark scopes) lives here; the marker in
+    // the compartment decides which scope fires — avoiding a light/dark conflict.
+    notepadBase,
+    notepadHighlight,
+    EditorView.updateListener.of((update: ViewUpdate) => {
+      // Route to this pane's controller which writes to the DocumentStore.
+      ctrlRef.current?.onUpdate(update);
+      // Emit a custom event for cursor tracking in StatusBar, tagged with the
+      // originating pane so the StatusBar can reflect only the focused view.
+      if (update.selectionSet) {
+        const pos = update.state.selection.main.head;
+        const line = update.state.doc.lineAt(pos);
+        update.view.dom.dispatchEvent(
+          new CustomEvent('cm-cursor-change', {
+            bubbles: true,
+            detail: { line: line.number, col: pos - line.from + 1, view: viewId },
+          }),
+        );
+      }
+    }),
+  ];
+}
+
+const sharedExtensions = buildSharedExtensions(controllerRef, 0);
 
 const view = new EditorView({
   parent: document.getElementById('editor')!,
@@ -310,6 +327,57 @@ window.__activeLanguage = null;
 const store = new DocumentStore();
 const controller = new EditorController(view, store);
 controllerRef.current = controller;
+
+// Focused-pane refs shared with App: App repoints these on focus change so every
+// editor command, the Lua bridge, and the inspector panels follow the focused pane.
+const focusedViewRef: { current: EditorView } = { current: view };
+const focusedControllerRef: { current: EditorController } = { current: controller };
+
+/**
+ * Build the secondary (split) editor host. Two-phase: the host DOM (tab strip +
+ * editor container) is created immediately so it can be mounted into the dockview
+ * secondary group; the EditorView + EditorController are created by mount() only
+ * AFTER the host is attached to the dock (creating the view beforehand breaks
+ * dockview group insertion and mis-measures CM6). Called lazily by App.
+ */
+function createSecondaryEditor(): SecondaryEditorHost {
+  const hostEl = document.createElement('div');
+  hostEl.id = 'dock-editor-host-2';
+  hostEl.style.cssText =
+    'display:flex;flex-direction:column;height:100%;width:100%;overflow:hidden;';
+
+  const tabbarWrapper = document.createElement('div');
+  tabbarWrapper.style.cssText = 'flex:0 0 auto;';
+  const tabbarEl = document.createElement('div');
+  tabbarEl.id = 'tabbar-2';
+  tabbarWrapper.appendChild(tabbarEl);
+
+  const editorWrapper = document.createElement('div');
+  editorWrapper.style.cssText = 'flex:1 1 auto;overflow:hidden;position:relative;min-height:0;';
+  const editorEl = document.createElement('div');
+  editorEl.id = 'editor-2';
+  editorWrapper.appendChild(editorEl);
+
+  hostEl.appendChild(tabbarWrapper);
+  hostEl.appendChild(editorWrapper);
+
+  return {
+    hostEl,
+    tabbarEl,
+    mount() {
+      const sharedB = buildSharedExtensions(controllerBRef, 1);
+      const viewB = new EditorView({
+        parent: editorEl,
+        state: EditorState.create({ doc: '', extensions: sharedB }),
+      });
+      const controllerB = new EditorController(viewB, store);
+      controllerBRef.current = controllerB;
+      controllerB.setSharedExtensions(sharedB);
+      controllerB.attachScrollListener();
+      return { view: viewB, controller: controllerB };
+    },
+  };
+}
 
 // Pass the shared extensions (including updateListener) to the controller so
 // every per-document EditorState created by showDoc() carries the updateListener.
@@ -429,6 +497,11 @@ const app = new App({
   // symbolCompartment is intentionally NOT passed here — App now uses
   // controller.setSymbolExt() / controller.symbolCompartment so that
   // new tabs opened after a Show-Symbol toggle inherit the current setting.
+  // Split-view wiring: focused refs + dock + secondary-editor factory.
+  viewRef: focusedViewRef,
+  controllerRef: focusedControllerRef,
+  dockManager,
+  createSecondaryEditor,
 });
 
 // ── Expose dockManager + panel toggles globally for App to wire up menu ──────
@@ -560,8 +633,8 @@ dockManager.registerPanel({
   render: (el: HTMLElement) => mountWorkspacePanel(el, store, controller),
 });
 
-// viewRef: mutable wrapper so the inspector panels always read the live EditorView.
-const viewRef: { current: EditorView | null } = { current: view };
+// Inspector panels read the FOCUSED view so they follow the active split pane.
+const viewRef = focusedViewRef;
 
 dockManager.registerPanel({
   id: 'editor-inspector',
@@ -591,8 +664,8 @@ dockManager.registerPanel({
   render: (el: HTMLElement) => mountSearchResultsPanel(el, store, controller),
 });
 
-// Wire the editor bridge so Lua scripts can manipulate the editor via `editor.*` APIs.
-luaConsoleEngine.setEditorBridge(createEditorBridge(() => view));
+// Wire the editor bridge so Lua scripts manipulate the FOCUSED editor pane.
+luaConsoleEngine.setEditorBridge(createEditorBridge(() => focusedViewRef.current));
 
 // __appReady resolves after app.start() + dockview init + a rAF so CM6 has
 // laid out at least once before e2e consumers poll for editor state.
@@ -606,6 +679,9 @@ window.__appReady = (async () => {
   const tabbarEl = document.getElementById('tabbar')!;
 
   await dockManager.init(dockEl, editorEl, tabbarEl, dockStorage);
+
+  // Recreate a persisted split pane's dock group now that the dock is initialised.
+  app.finishStartup();
 
   // Request a CM6 measure so it picks up its new container size.
   view.requestMeasure();
