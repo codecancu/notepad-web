@@ -11,7 +11,7 @@ powered by **CodeMirror 6** and **Wasmoon** (Lua 5.4 in WASM).
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/jfhgpoliojbbmiknmdbefeamimlekgdn?label=Chrome%20Web%20Store&logo=googlechrome&logoColor=white&color=success)](https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn)
 [![users](https://img.shields.io/chrome-web-store/users/jfhgpoliojbbmiknmdbefeamimlekgdn?label=users)](https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn)
-![version](https://img.shields.io/badge/version-0.2.0-informational)
+![version](https://img.shields.io/badge/version-0.3.0-informational)
 
 <p align="center">
   <a href="https://chromewebstore.google.com/detail/notepad-web/jfhgpoliojbbmiknmdbefeamimlekgdn"><b>⬇&nbsp; Install from the Chrome Web Store</b></a>
@@ -136,7 +136,7 @@ npm run package    # manifest-compliance + no-remote-code checks, then zips dist
 
 The `npm run package` step verifies that no CDN/remote URLs survived the build and that
 the manifest declares only allowed permissions before producing
-`notepad-web-v0.2.0.zip`.
+`notepad-web-v0.3.0.zip`.
 
 ## Architecture
 

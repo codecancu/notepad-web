@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Notepad Web",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A CodeMirror-based code editor that runs fully offline in your browser.",
   "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
   "background": { "service_worker": "background.js", "type": "module" },

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-07-08
+
+### Added
+
+- **Split view (two editor panes)** — a faithful Notepad++ two-view layout.
+  `View → Split Horizontal` stacks a second editor pane below; `Split Vertical`
+  places it side-by-side. Each pane has its own tab strip, and every open
+  document belongs to exactly one pane. Right-click a tab → **Move to Other
+  View** to relocate it. The pane you last clicked is the focused pane that
+  Find/Replace, the status bar, macros, the Lua Console, and menu commands act
+  on. Choosing Split again collapses back to a single pane, as does closing the
+  last tab in the secondary pane. The split layout — which files are in which
+  pane, the orientation, and each pane's active tab — is restored on reload.
+
+### Fixed
+
+- **New tabs focus the editor.** Opening a tab via the `+` button or
+  `File → New` now places the caret in the text area so you can type
+  immediately, without clicking first.
+- **Switching tabs focuses the editor.** Activating an existing tab (including
+  from the `>>` overflow dropdown) focuses its editor pane.
+- **Reload focuses the editor.** After a page reload, the active document's
+  editor is focused so you can keep typing right away.
+
 ## [0.2.0] — 2026-07-03
 
 ### Changed
