@@ -211,6 +211,7 @@ export class App {
         store.setActiveForView(viewId, id);
         this.controllerFor(viewId)?.showDoc(id);
         this.deps.dockManager?.focusEditorGroup(viewId);
+        this.viewFor(viewId)?.focus();
       },
       (id) => {
         const doc = store.get(id);
@@ -230,6 +231,7 @@ export class App {
         this.applyFocus(viewId);
         const d = store.create(); // create() adds to the focused view (== viewId)
         this.controllerFor(viewId)?.showDoc(d.id);
+        this.viewFor(viewId)?.focus();
       },
       {
         onSave: () => void fileActionsRef.current?.saveActive(),
@@ -297,7 +299,7 @@ export class App {
     const srcController = this.controllerFor(source);
     const tgtController = this.controllerFor(target);
     if (!tgtController) return;
-    store.moveToView(id, target); // focus=target, active[target]=id, source active re-pointed
+    store.moveToView(id, target);
     srcController?.closeDoc(id);
     const srcActive = store.activeForView(source);
     if (srcActive) {
@@ -655,6 +657,7 @@ export class App {
     const doNew = (): void => {
       const d = this.deps.store.create();
       this.controller.showDoc(d.id);
+      this.view.focus();
     };
 
     const doClose = (): void => {
@@ -1549,5 +1552,14 @@ export class App {
     const a = this.deps.store.activeForView(1);
     if (a) controller.showDoc(a.id);
     view.requestMeasure();
+  }
+
+  /**
+   * Focus the active editor pane. Called by the bootstrap once the dock is
+   * initialised (the #editor element has been moved into the dock group by then),
+   * so after a page reload the user can keep typing without clicking first.
+   */
+  focusActiveEditor(): void {
+    this.view.focus();
   }
 }

@@ -690,6 +690,8 @@ window.__appReady = (async () => {
 
   // Settle layout with a rAF.
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+  app.focusActiveEditor();
 })();
 
 // ── PWA service worker (installability + offline) ────────────────────────────
